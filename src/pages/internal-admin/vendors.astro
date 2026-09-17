@@ -1,0 +1,1025 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+import { getRemainingDays, isTrialActive, isSubscriptionActive } from '../../lib/business/slotEnforcement';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const vendors = await repo.getAdminVendors();
+const now = new Date();
+
+// Helper to determine accurate listing status and badge styling
+function getListingLifecycleInfo(l: typeof vendors[0]['listings'][0]) {
+  const trial = l.current_trial;
+  const sub = l.subscription;
+
+  const isSubCurrentlyActive = sub && isSubscriptionActive(sub, now);
+  const isTrialCurrentlyActive = trial && isTrialActive(trial, now);
+
+  if (trial && trial.status === 'converted' && isSubCurrentlyActive) {
+    const days = getRemainingDays(sub.ends_at, now);
+    return {
+      status: 'CONVERTED_PAID',
+      label: 'TRIAL — CONVERTED TO PAID',
+      sublabel: `Active until ${new Date(sub.ends_at).toLocaleDateString('en-IN')} (${days}d left)`,
+      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+      canStartTrial: false,
+      canConvert: false,
+      canRenew: true,
+      isTrial: false,
+      isPaid: true,
+      trialUsed: true,
+    };
+  }
+
+  if (isTrialCurrentlyActive) {
+    const days = getRemainingDays(trial.ends_at, now);
+    const isExpiringSoon = days <= 7;
+    return {
+      status: isExpiringSoon ? 'TRIAL_EXPIRING' : 'TRIAL_ACTIVE',
+      label: isExpiringSoon ? `TRIAL — EXPIRING (${days}d remaining)` : `TRIAL — ACTIVE (${days}d remaining)`,
+      sublabel: `Trial ends on ${new Date(trial.ends_at).toLocaleDateString('en-IN')}`,
+      badgeClass: isExpiringSoon
+        ? 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse'
+        : 'bg-blue-50 text-blue-800 border-blue-300',
+      canStartTrial: false,
+      canConvert: true,
+      canRenew: false,
+      isTrial: true,
+      isPaid: false,
+      trialUsed: true,
+    };
+  }
+
+  if (trial && (trial.status === 'expired' || new Date(trial.ends_at).getTime() <= now.getTime()) && !isSubCurrentlyActive) {
+    return {
+      status: 'TRIAL_EXPIRED',
+      label: 'TRIAL — EXPIRED',
+      sublabel: `Ended ${new Date(trial.ends_at).toLocaleDateString('en-IN')} (Unpaid)`,
+      badgeClass: 'bg-rose-50 text-rose-800 border-rose-300',
+      canStartTrial: true, // Requires override!
+      canConvert: true,
+      canRenew: false,
+      isTrial: true,
+      isPaid: false,
+      trialUsed: true,
+    };
+  }
+
+  if (isSubCurrentlyActive) {
+    const days = getRemainingDays(sub.ends_at, now);
+    const isExpiring = days <= 30;
+    return {
+      status: isExpiring ? 'PAID_EXPIRING' : 'PAID_ACTIVE',
+      label: isExpiring ? `ACTIVE — RENEWAL DUE (${days}d)` : 'ACTIVE — ANNUAL PAID',
+      sublabel: `Expires on ${new Date(sub.ends_at).toLocaleDateString('en-IN')}`,
+      badgeClass: isExpiring
+        ? 'bg-amber-50 text-amber-800 border-amber-300'
+        : 'bg-green-50 text-green-800 border-green-300',
+      canStartTrial: false,
+      canConvert: false,
+      canRenew: true,
+      isTrial: false,
+      isPaid: true,
+      trialUsed: Boolean(trial),
+    };
+  }
+
+  if (l.approval_status === 'waitlisted') {
+    return {
+      status: 'WAITLIST',
+      label: 'WAITLIST (10/10 Slots Full)',
+      sublabel: 'Listing queued for next slot opening',
+      badgeClass: 'bg-purple-50 text-purple-800 border-purple-300',
+      canStartTrial: true,
+      canConvert: true,
+      canRenew: false,
+      isTrial: false,
+      isPaid: false,
+      trialUsed: Boolean(trial),
+    };
+  }
+
+  // Brand new unpaid / approved listing
+  return {
+    status: 'AWAITING_PAYMENT',
+    label: 'APPROVED — READY FOR ACTIVATION',
+    sublabel: 'Eligible for 30-day free trial or ₹999/yr annual activation',
+    badgeClass: 'bg-surface-muted text-ink-secondary border-surface-border',
+    canStartTrial: true,
+    canConvert: false,
+    canRenew: false,
+    isTrial: false,
+    isPaid: false,
+    trialUsed: Boolean(trial),
+  };
+}
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-surface-canvas">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Vendors, Trials & Listing Management</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary">
+    
+    <!-- Top Nav -->
+    <header class="bg-white border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Applications</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Payments</a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href={`/${adminEntryPath}`} class="text-xs font-semibold text-ink-muted hover:text-ink-primary">← Dashboard Overview</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+      
+      <!-- Page Header & Filter Controls -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-surface-border shadow-soft">
+        <div>
+          <h1 class="text-2xl font-black text-ink-primary">Vendors, Listing Slots & Trials</h1>
+          <p class="text-xs text-ink-muted mt-1">
+            Manage 30-day free trials, 10-slot limits, ₹999 conversions, and bilingual performance reports.
+          </p>
+        </div>
+
+        <!-- Filter & Search Controls -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <select id="filter-status" class="px-3 py-2 rounded-xl border border-surface-border text-xs bg-surface-canvas font-semibold">
+            <option value="all">All Statuses</option>
+            <option value="trial-active">Trial Active</option>
+            <option value="trial-expiring">Trial Expiring (≤ 7d)</option>
+            <option value="trial-expired">Trial Expired</option>
+            <option value="converted">Converted to Paid</option>
+            <option value="paid-active">Paid Active</option>
+            <option value="waitlist">Waiting List</option>
+          </select>
+
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Search vendor, mobile, taluka..."
+            class="px-3.5 py-2 rounded-xl border border-surface-border text-xs bg-surface-canvas min-w-[200px]"
+          />
+        </div>
+      </div>
+
+      <!-- Vendors List Container -->
+      <div id="vendors-container" class="space-y-4">
+        {vendors.map((vendor) => (
+          <div
+            class="vendor-card bg-white rounded-3xl border border-surface-border p-6 shadow-soft transition-all"
+            data-vendor-id={vendor.id}
+            data-vendor-name={vendor.provider_name.toLowerCase()}
+            data-vendor-mobile={vendor.mobile}
+          >
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              
+              <!-- Vendor Information -->
+              <div class="flex-1 space-y-3">
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="text-lg font-bold text-ink-primary">{vendor.provider_name}</span>
+                  {vendor.business_name && (
+                    <span class="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-200">
+                      {vendor.business_name}
+                    </span>
+                  )}
+                  {vendor.is_verified ? (
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                      ✓ Verified
+                    </span>
+                  ) : (
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-surface-muted text-ink-muted border border-surface-border">
+                      Unverified
+                    </span>
+                  )}
+                  {vendor.is_suspended && (
+                    <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                      SUSPENDED
+                    </span>
+                  )}
+                </div>
+
+                <div class="flex items-center gap-4 text-xs text-ink-muted flex-wrap">
+                  <span>Mobile: <strong class="text-ink-primary font-mono">{vendor.mobile}</strong></span>
+                  <span>Address: <span class="text-ink-secondary">{vendor.full_address}</span></span>
+                  <span>Experience: <strong class="text-ink-primary">{vendor.experience_years} yrs</strong></span>
+                </div>
+
+                <!-- Listings & Commercial Statuses Sub-panel -->
+                <div class="pt-4 border-t border-surface-border space-y-3">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                    Commercial Listings (1 Vendor + 1 Category + 1 Taluka):
+                  </span>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {vendor.listings.map((l) => {
+                      const info = getListingLifecycleInfo(l);
+                      return (
+                        <div
+                          class="listing-row p-3.5 rounded-2xl bg-surface-canvas border border-surface-border text-xs flex flex-col justify-between gap-3"
+                          data-status={info.status}
+                          data-category={l.category.name_en.toLowerCase()}
+                          data-taluka={l.taluka.name_en.toLowerCase()}
+                        >
+                          <div>
+                            <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                              <span class="font-bold text-ink-primary text-sm">
+                                {l.category.name_mr} ({l.taluka.name_mr})
+                              </span>
+                              <span class={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${info.badgeClass}`}>
+                                {info.label}
+                              </span>
+                            </div>
+                            <div class="text-[11px] text-ink-muted">
+                              {info.sublabel}
+                            </div>
+                          </div>
+
+                          <!-- Listing Action Buttons -->
+                          <div class="flex items-center gap-2 pt-2 border-t border-surface-border/50 flex-wrap">
+                            
+                            <!-- Start Free Trial Button -->
+                            {info.canStartTrial && (
+                              <button
+                                type="button"
+                                class="start-trial-btn text-[11px] font-bold px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                                data-listing-id={l.id}
+                                data-vendor-name={vendor.provider_name}
+                                data-category-name={l.category.name_mr}
+                                data-taluka-name={l.taluka.name_mr}
+                                data-trial-used={info.trialUsed ? 'true' : 'false'}
+                              >
+                                Start 30-Day Trial
+                              </button>
+                            )}
+
+                            <!-- Convert to Paid Button -->
+                            {info.canConvert && (
+                              <button
+                                type="button"
+                                class="convert-trial-btn text-[11px] font-bold px-3 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white transition-colors shadow-xs"
+                                data-listing-id={l.id}
+                                data-vendor-name={vendor.provider_name}
+                                data-category-name={l.category.name_mr}
+                                data-taluka-name={l.taluka.name_mr}
+                                data-trial-ends={l.current_trial?.ends_at || ''}
+                              >
+                                Convert to Paid (₹999)
+                              </button>
+                            )}
+
+                            <!-- Renew Paid Subscription Button -->
+                            {info.canRenew && (
+                              <button
+                                type="button"
+                                class="renew-btn text-[11px] font-bold px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white transition-colors"
+                                data-listing-id={l.id}
+                                data-vendor-name={vendor.provider_name}
+                                data-category-name={l.category.name_mr}
+                                data-taluka-name={l.taluka.name_mr}
+                              >
+                                Renew (+1 yr)
+                              </button>
+                            )}
+
+                            <!-- Performance Report Trigger -->
+                            <button
+                              type="button"
+                              class="report-btn text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border border-surface-border bg-white text-ink-primary hover:bg-surface-muted transition-colors flex items-center gap-1"
+                              data-vendor-id={vendor.id}
+                              data-listing-id={l.id}
+                              data-vendor-name={vendor.provider_name}
+                              data-category-name={l.category.name_mr}
+                              data-taluka-name={l.taluka.name_mr}
+                            >
+                              <span>📊 Performance</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Vendor Global Controls -->
+              <div class="flex flex-row lg:flex-col items-center gap-2 flex-shrink-0 w-full lg:w-auto justify-end">
+                <button
+                  type="button"
+                  class="vendor-report-btn text-xs font-semibold px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors w-full lg:w-36 text-center"
+                  data-vendor-id={vendor.id}
+                  data-vendor-name={vendor.provider_name}
+                >
+                  Full Report 📈
+                </button>
+                <button
+                  type="button"
+                  class="toggle-verify-btn text-xs font-semibold px-3 py-1.5 rounded-xl border border-surface-border text-ink-primary hover:bg-surface-muted transition-colors w-full lg:w-36"
+                  data-vendor-id={vendor.id}
+                  data-verified={vendor.is_verified ? 'true' : 'false'}
+                >
+                  {vendor.is_verified ? 'Remove Verified' : 'Grant Verified'}
+                </button>
+                <button
+                  type="button"
+                  class="toggle-suspend-btn text-xs font-semibold px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors w-full lg:w-36"
+                  data-vendor-id={vendor.id}
+                  data-suspended={vendor.is_suspended ? 'true' : 'false'}
+                >
+                  {vendor.is_suspended ? 'Unsuspend' : 'Suspend'}
+                </button>
+                <a
+                  href={`/mr/provider/${vendor.slug}`}
+                  target="_blank"
+                  class="text-xs font-semibold text-brand-700 hover:underline px-2 py-1 text-center"
+                >
+                  Public View ↗
+                </a>
+              </div>
+
+            </div>
+          </div>
+        ))}
+      </div>
+
+    </main>
+
+    <!-- 1. Start 30-Day Free Trial Modal -->
+    <dialog
+      id="start-trial-dialog"
+      class="m-auto rounded-3xl p-0 shadow-2xl border border-surface-border bg-white max-w-md w-[92vw] backdrop:bg-ink-primary/50"
+    >
+      <div class="p-6 sm:p-8">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xl">⚡</span>
+          <h3 class="text-lg font-black text-ink-primary">Start 30-Day Free Trial</h3>
+        </div>
+        <p id="trial-modal-subtitle" class="text-xs text-ink-muted mb-4"></p>
+
+        <form id="start-trial-form" class="space-y-4">
+          <input type="hidden" id="trial-listing-id" name="listing_id" />
+
+          <!-- Anti-Abuse Alert Banner (Shown if trial was already used) -->
+          <div id="trial-used-warning" class="hidden p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+            <div class="font-bold flex items-center gap-1.5">
+              <span>⚠️ Trial Already Used</span>
+            </div>
+            <p class="text-[11px] leading-relaxed">
+              This listing has already utilized its free 30-day trial. Anti-abuse rules permit only one free trial per listing. To grant an additional trial, explicit Admin Override and reason are required.
+            </p>
+            <div class="pt-1">
+              <label class="flex items-center gap-2 text-xs font-bold text-amber-900 cursor-pointer">
+                <input type="checkbox" id="trial-override-check" class="rounded text-brand-600" />
+                <span>Grant Admin Override</span>
+              </label>
+            </div>
+            <div id="override-reason-container" class="hidden pt-1">
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-amber-900 mb-1">
+                Reason for additional free trial *
+              </label>
+              <textarea
+                id="trial-override-reason"
+                rows="2"
+                placeholder="e.g. Shop relocation, verified illness during initial trial period..."
+                class="w-full p-2 rounded-xl border border-amber-300 bg-white text-xs"
+              ></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1">
+              Trial Start Date
+            </label>
+            <input
+              type="date"
+              id="trial-start-date"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono"
+            />
+            <p class="text-[11px] text-ink-muted mt-1">Leave empty to start immediately. Calculated 30 days in IST.</p>
+          </div>
+
+          <div id="trial-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium"></div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onclick="document.getElementById('start-trial-dialog')?.close()"
+              class="px-4 py-2 text-xs font-semibold text-ink-secondary hover:text-ink-primary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="trial-submit-btn"
+              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors"
+            >
+              Start 30-Day Trial
+            </button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <!-- 2. Convert Trial to Paid Modal (₹999/yr) -->
+    <dialog
+      id="convert-dialog"
+      class="m-auto rounded-3xl p-0 shadow-2xl border border-surface-border bg-white max-w-md w-[92vw] backdrop:bg-ink-primary/50"
+    >
+      <div class="p-6 sm:p-8">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xl">💳</span>
+          <h3 class="text-lg font-black text-ink-primary">Convert to Paid — ₹999/year</h3>
+        </div>
+        <p id="convert-modal-subtitle" class="text-xs text-ink-muted mb-3"></p>
+
+        <!-- Trial Days Preservation Notice -->
+        <div id="convert-notice" class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 mb-4">
+          <div class="font-bold flex items-center gap-1.5 mb-1">
+            <span>✨ Free Trial Days Preserved</span>
+          </div>
+          <p id="convert-notice-text" class="text-[11px] leading-relaxed">
+            The annual subscription will begin seamlessly after the trial expiry so no free trial days are lost.
+          </p>
+        </div>
+
+        <form id="convert-form" class="space-y-4">
+          <input type="hidden" id="convert-listing-id" name="listing_id" />
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1">
+              Annual Amount (INR)
+            </label>
+            <input
+              type="number"
+              id="convert-amount"
+              value="999"
+              required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1">
+              Payment Method
+            </label>
+            <select
+              id="convert-method"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm"
+            >
+              <option value="upi">UPI (GPay / PhonePe / Paytm)</option>
+              <option value="cash">Cash (Direct receipt)</option>
+              <option value="bank_transfer">Bank Transfer / NEFT</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1">
+              Reference / Txn ID
+            </label>
+            <input
+              type="text"
+              id="convert-ref"
+              placeholder="e.g. UPI-20260907-991823"
+              required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1">
+              Admin Notes (Optional)
+            </label>
+            <input
+              type="text"
+              id="convert-notes"
+              placeholder="e.g. Collected via shop visit"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm"
+            />
+          </div>
+
+          <div id="convert-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium"></div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onclick="document.getElementById('convert-dialog')?.close()"
+              class="px-4 py-2 text-xs font-semibold text-ink-secondary hover:text-ink-primary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="convert-submit-btn"
+              class="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs shadow-xs transition-colors"
+            >
+              Confirm & Activate Annual
+            </button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <!-- 3. Performance & Bilingual WhatsApp Report Modal -->
+    <dialog
+      id="report-dialog"
+      class="m-auto rounded-3xl p-0 shadow-2xl border border-surface-border bg-white max-w-2xl w-[94vw] backdrop:bg-ink-primary/50"
+    >
+      <div class="p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between gap-4 mb-2">
+          <div>
+            <h3 class="text-xl font-black text-ink-primary" id="report-title">Vendor Performance Report</h3>
+            <p class="text-xs text-ink-muted" id="report-subtitle"></p>
+          </div>
+          <button
+            type="button"
+            onclick="document.getElementById('report-dialog')?.close()"
+            class="text-ink-muted hover:text-ink-primary text-xl font-bold p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Date Range Filter Tabs -->
+        <div class="flex items-center gap-1.5 overflow-x-auto py-2 border-b border-surface-border mb-6 text-xs font-semibold">
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200" data-range="30d">Last 30 Days</button>
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary" data-range="7d">Last 7 Days</button>
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary" data-range="90d">Last 90 Days</button>
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary" data-range="trial">Current Trial</button>
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary" data-range="subscription">Subscription</button>
+          <button type="button" class="report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary" data-range="all">All Time</button>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+          <div class="p-4 rounded-2xl bg-surface-canvas border border-surface-border">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Profile Views</div>
+            <div class="text-2xl font-black text-ink-primary mt-1" id="metric-views">0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-surface-canvas border border-surface-border">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-brand-700">Call Clicks</div>
+            <div class="text-2xl font-black text-brand-600 mt-1" id="metric-calls">0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-surface-canvas border border-surface-border">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-green-700">WhatsApp Clicks</div>
+            <div class="text-2xl font-black text-green-600 mt-1" id="metric-wa">0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-surface-canvas border border-surface-border">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-blue-700">Directions Clicks</div>
+            <div class="text-2xl font-black text-blue-600 mt-1" id="metric-dir">0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-surface-canvas border border-surface-border">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Share Clicks</div>
+            <div class="text-2xl font-black text-ink-primary mt-1" id="metric-shares">0</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-brand-50 border border-brand-200 shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-brand-800">Total Contact Actions</div>
+            <div class="text-2xl font-black text-brand-700 mt-1" id="metric-contact">0</div>
+            <div class="text-[10px] text-brand-700 mt-0.5">Calls + WhatsApp + Maps</div>
+          </div>
+        </div>
+
+        <!-- Neutral Disclaimer -->
+        <div class="p-3 rounded-xl bg-surface-canvas border border-surface-border text-[11px] text-ink-muted mb-6 leading-relaxed">
+          <strong>Transparency Notice:</strong> Aheka reports button interactions and profile activity; actual completed calls, inquiries, or jobs cannot be guaranteed or confirmed.
+        </div>
+
+        <!-- Bilingual WhatsApp Message Previews & Actions -->
+        <div class="space-y-4 pt-4 border-t border-surface-border">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-sm text-ink-primary">Formatted WhatsApp Message</h4>
+            <div class="flex items-center gap-2">
+              <button type="button" id="copy-wa-mr-btn" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">
+                📋 Copy (मराठी)
+              </button>
+              <button type="button" id="copy-wa-en-btn" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-surface-muted hover:bg-surface-border text-ink-primary transition-colors">
+                📋 Copy (English)
+              </button>
+              <a id="open-wa-btn" href="#" target="_blank" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white transition-colors flex items-center gap-1">
+                <span>Open WhatsApp ↗</span>
+              </a>
+            </div>
+          </div>
+
+          <textarea
+            id="wa-preview-box"
+            rows="6"
+            readonly
+            class="w-full p-3.5 rounded-2xl border border-surface-border bg-surface-canvas text-xs font-mono leading-relaxed select-all"
+          ></textarea>
+
+          <div class="flex items-center justify-between pt-2">
+            <button
+              type="button"
+              onclick="window.print()"
+              class="text-xs text-ink-muted hover:text-ink-primary flex items-center gap-1"
+            >
+              🖨️ Print / Save Report
+            </button>
+            <span id="copy-toast" class="hidden text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
+              Copied to clipboard!
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </dialog>
+
+    <div id="admin-meta" data-entry-path={adminEntryPath} class="hidden"></div>
+    <script>
+      const adminEntryPath = document.getElementById('admin-meta')?.getAttribute('data-entry-path') || 'local-admin';
+      // DOM References
+      const trialDialog = document.getElementById('start-trial-dialog') as HTMLDialogElement | null;
+      const convertDialog = document.getElementById('convert-dialog') as HTMLDialogElement | null;
+      const reportDialog = document.getElementById('report-dialog') as HTMLDialogElement | null;
+
+      // Filter & Search Logic
+      const filterSelect = document.getElementById('filter-status') as HTMLSelectElement | null;
+      const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+      const vendorCards = document.querySelectorAll<HTMLElement>('.vendor-card');
+
+      function applyFilters() {
+        const query = searchInput?.value.toLowerCase().trim() || '';
+        const statusFilter = filterSelect?.value || 'all';
+
+        vendorCards.forEach(card => {
+          const name = card.dataset.vendorName || '';
+          const mobile = card.dataset.vendorMobile || '';
+          const matchesSearch = !query || name.includes(query) || mobile.includes(query);
+
+          if (!matchesSearch) {
+            card.classList.add('hidden');
+            return;
+          }
+
+          if (statusFilter === 'all') {
+            card.classList.remove('hidden');
+            return;
+          }
+
+          // Check listings inside this vendor
+          const listingRows = card.querySelectorAll<HTMLElement>('.listing-row');
+          let hasMatchingStatus = false;
+
+          listingRows.forEach(row => {
+            const st = row.dataset.status || '';
+            if (statusFilter === 'trial-active' && st === 'TRIAL_ACTIVE') hasMatchingStatus = true;
+            if (statusFilter === 'trial-expiring' && st === 'TRIAL_EXPIRING') hasMatchingStatus = true;
+            if (statusFilter === 'trial-expired' && st === 'TRIAL_EXPIRED') hasMatchingStatus = true;
+            if (statusFilter === 'converted' && st === 'CONVERTED_PAID') hasMatchingStatus = true;
+            if (statusFilter === 'paid-active' && (st === 'PAID_ACTIVE' || st === 'PAID_EXPIRING')) hasMatchingStatus = true;
+            if (statusFilter === 'waitlist' && st === 'WAITLIST') hasMatchingStatus = true;
+          });
+
+          if (hasMatchingStatus) {
+            card.classList.remove('hidden');
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      }
+
+      filterSelect?.addEventListener('change', applyFilters);
+      searchInput?.addEventListener('input', applyFilters);
+
+      // --- 1. Start Trial Dialog Logic ---
+      document.querySelectorAll<HTMLButtonElement>('.start-trial-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const listingId = btn.dataset.listingId || '';
+          const vendorName = btn.dataset.vendorName || '';
+          const cat = btn.dataset.categoryName || '';
+          const tal = btn.dataset.talukaName || '';
+          const trialUsed = btn.dataset.trialUsed === 'true';
+
+          const idInput = document.getElementById('trial-listing-id') as HTMLInputElement | null;
+          const subtitle = document.getElementById('trial-modal-subtitle');
+          const warningBox = document.getElementById('trial-used-warning');
+          const overrideCheck = document.getElementById('trial-override-check') as HTMLInputElement | null;
+          const reasonContainer = document.getElementById('override-reason-container');
+          const errBox = document.getElementById('trial-error');
+
+          if (idInput) idInput.value = listingId;
+          if (subtitle) subtitle.textContent = `${vendorName} — ${cat} (${tal})`;
+          errBox?.classList.add('hidden');
+
+          if (warningBox && overrideCheck) {
+            if (trialUsed) {
+              warningBox.classList.remove('hidden');
+              overrideCheck.checked = false;
+              reasonContainer?.classList.add('hidden');
+            } else {
+              warningBox.classList.add('hidden');
+            }
+          }
+
+          trialDialog?.showModal();
+        });
+      });
+
+      document.getElementById('trial-override-check')?.addEventListener('change', (e) => {
+        const checked = (e.target as HTMLInputElement).checked;
+        const container = document.getElementById('override-reason-container');
+        if (checked) {
+          container?.classList.remove('hidden');
+        } else {
+          container?.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('start-trial-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('trial-submit-btn') as HTMLButtonElement | null;
+        const errBox = document.getElementById('trial-error');
+        if (btn) btn.textContent = 'Enforcing slot limit...';
+        errBox?.classList.add('hidden');
+
+        const listingId = (document.getElementById('trial-listing-id') as HTMLInputElement)?.value;
+        const startDate = (document.getElementById('trial-start-date') as HTMLInputElement)?.value;
+        const isOverride = (document.getElementById('trial-override-check') as HTMLInputElement)?.checked;
+        const reason = (document.getElementById('trial-override-reason') as HTMLTextAreaElement)?.value;
+
+        try {
+          const res = await fetch(`/${adminEntryPath}/api/start-trial`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              listing_id: listingId,
+              start_date: startDate || undefined,
+              is_override: isOverride,
+              override_reason: reason,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            trialDialog?.close();
+            alert('30-Day Free Trial activated! Listing is now live in daily rotation.');
+            window.location.reload();
+          } else {
+            if (errBox) {
+              errBox.textContent = data.message || data.error || 'Failed to start trial';
+              errBox.classList.remove('hidden');
+            }
+            if (btn) btn.textContent = 'Start 30-Day Trial';
+          }
+        } catch {
+          if (errBox) {
+            errBox.textContent = 'Network error.';
+            errBox.classList.remove('hidden');
+          }
+          if (btn) btn.textContent = 'Start 30-Day Trial';
+        }
+      });
+
+      // --- 2. Convert Trial to Paid Logic ---
+      document.querySelectorAll<HTMLButtonElement>('.convert-trial-btn, .renew-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const listingId = btn.dataset.listingId || '';
+          const vendorName = btn.dataset.vendorName || '';
+          const cat = btn.dataset.categoryName || '';
+          const tal = btn.dataset.talukaName || '';
+          const trialEnds = btn.dataset.trialEnds;
+
+          const idInput = document.getElementById('convert-listing-id') as HTMLInputElement | null;
+          const subtitle = document.getElementById('convert-modal-subtitle');
+          const noticeText = document.getElementById('convert-notice-text');
+          const errBox = document.getElementById('convert-error');
+
+          if (idInput) idInput.value = listingId;
+          if (subtitle) subtitle.textContent = `${vendorName} — ${cat} (${tal})`;
+          errBox?.classList.add('hidden');
+
+          if (noticeText && trialEnds) {
+            const endDate = new Date(trialEnds);
+            if (endDate > new Date()) {
+              noticeText.textContent = `Provider currently has an active trial ending on ${endDate.toLocaleDateString('en-IN')}. Annual subscription will begin seamlessly on that date without losing any free days.`;
+            } else {
+              noticeText.textContent = `Trial expired. Converting now will re-check slot availability and activate annual subscription immediately.`;
+            }
+          }
+
+          convertDialog?.showModal();
+        });
+      });
+
+      document.getElementById('convert-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('convert-submit-btn') as HTMLButtonElement | null;
+        const errBox = document.getElementById('convert-error');
+        if (btn) btn.textContent = 'Recording ₹999 payment...';
+        errBox?.classList.add('hidden');
+
+        const payload = {
+          listing_id: (document.getElementById('convert-listing-id') as HTMLInputElement)?.value,
+          amount: (document.getElementById('convert-amount') as HTMLInputElement)?.value,
+          payment_method: (document.getElementById('convert-method') as HTMLSelectElement)?.value,
+          reference_number: (document.getElementById('convert-ref') as HTMLInputElement)?.value,
+          notes: (document.getElementById('convert-notes') as HTMLInputElement)?.value,
+        };
+
+        try {
+          const res = await fetch(`/${adminEntryPath}/api/convert-trial`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            convertDialog?.close();
+            alert('Payment recorded! Listing converted to annual paid subscription.');
+            window.location.reload();
+          } else {
+            if (errBox) {
+              errBox.textContent = data.message || data.error || 'Failed to convert trial';
+              errBox.classList.remove('hidden');
+            }
+            if (btn) btn.textContent = 'Confirm & Activate Annual';
+          }
+        } catch {
+          if (errBox) {
+            errBox.textContent = 'Network error.';
+            errBox.classList.remove('hidden');
+          }
+          if (btn) btn.textContent = 'Confirm & Activate Annual';
+        }
+      });
+
+      // --- 3. Performance Report Logic ---
+      let currentReportVendorId = '';
+      let currentReportListingId = '';
+      let currentReportRange = '30d';
+      let cachedMrText = '';
+      let cachedEnText = '';
+
+      async function loadReport(vendorId: string, listingId?: string, range: string = '30d') {
+        currentReportVendorId = vendorId;
+        currentReportListingId = listingId || '';
+        currentReportRange = range;
+
+        const res = await fetch(`/${adminEntryPath}/api/report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendor_id: vendorId,
+            listing_id: listingId || undefined,
+            range_type: range,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const rep = data.report;
+          const m = rep.metrics;
+
+          const titleEl = document.getElementById('report-title');
+          const subtitleEl = document.getElementById('report-subtitle');
+          if (titleEl) titleEl.textContent = `${rep.vendor.provider_name} — Performance`;
+          if (subtitleEl) {
+            subtitleEl.textContent = rep.listing
+              ? `${rep.listing.category.name_mr} (${rep.listing.taluka.name_mr}) • Period: ${new Date(rep.from_date).toLocaleDateString('en-IN')} to ${new Date(rep.to_date).toLocaleDateString('en-IN')}`
+              : `Combined Vendor Performance • ${rep.allListings?.length || 1} services`;
+          }
+
+          // Populate metrics
+          const viewsEl = document.getElementById('metric-views');
+          const callsEl = document.getElementById('metric-calls');
+          const waEl = document.getElementById('metric-wa');
+          const dirEl = document.getElementById('metric-dir');
+          const sharesEl = document.getElementById('metric-shares');
+          const contactEl = document.getElementById('metric-contact');
+
+          if (viewsEl) viewsEl.textContent = m.profile_views;
+          if (callsEl) callsEl.textContent = m.call_clicks;
+          if (waEl) waEl.textContent = m.whatsapp_clicks;
+          if (dirEl) dirEl.textContent = m.directions_clicks;
+          if (sharesEl) sharesEl.textContent = m.share_clicks;
+          if (contactEl) contactEl.textContent = m.total_contact_actions;
+
+          cachedMrText = data.whatsapp_mr;
+          cachedEnText = data.whatsapp_en;
+
+          const previewBox = document.getElementById('wa-preview-box') as HTMLTextAreaElement | null;
+          if (previewBox) previewBox.value = cachedMrText;
+
+          const waLink = document.getElementById('open-wa-btn') as HTMLAnchorElement | null;
+          if (waLink) waLink.href = data.wa_link_mr;
+
+          reportDialog?.showModal();
+        }
+      }
+
+      document.querySelectorAll<HTMLButtonElement>('.report-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          loadReport(btn.dataset.vendorId || '', btn.dataset.listingId, '30d');
+        });
+      });
+
+      document.querySelectorAll<HTMLButtonElement>('.vendor-report-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          loadReport(btn.dataset.vendorId || '', undefined, '30d');
+        });
+      });
+
+      // Range tabs inside report dialog
+      document.querySelectorAll<HTMLButtonElement>('.report-range-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.report-range-tab').forEach(t => {
+            t.className = 'report-range-tab px-3 py-1.5 rounded-lg text-ink-muted hover:text-ink-primary';
+          });
+          tab.className = 'report-range-tab px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200';
+          loadReport(currentReportVendorId, currentReportListingId || undefined, tab.dataset.range || '30d');
+        });
+      });
+
+      // Copy WhatsApp Report Buttons
+      const toast = document.getElementById('copy-toast');
+      function showCopyToast() {
+        toast?.classList.remove('hidden');
+        setTimeout(() => toast?.classList.add('hidden'), 2500);
+      }
+
+      document.getElementById('copy-wa-mr-btn')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(cachedMrText);
+        const box = document.getElementById('wa-preview-box') as HTMLTextAreaElement | null;
+        if (box) box.value = cachedMrText;
+        showCopyToast();
+      });
+
+      document.getElementById('copy-wa-en-btn')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(cachedEnText);
+        const box = document.getElementById('wa-preview-box') as HTMLTextAreaElement | null;
+        if (box) box.value = cachedEnText;
+        showCopyToast();
+      });
+
+      // Verification & Suspension toggles
+      document.querySelectorAll<HTMLButtonElement>('.toggle-verify-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const vendorId = btn.dataset.vendorId;
+          const isVerified = btn.dataset.verified === 'true';
+          if (!confirm(`Toggle verification badge to ${!isVerified}?`)) return;
+
+          await fetch(`/${adminEntryPath}/api/toggle-vendor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vendor_id: vendorId, updates: { is_verified: !isVerified } }),
+          });
+          window.location.reload();
+        });
+      });
+
+      document.querySelectorAll<HTMLButtonElement>('.toggle-suspend-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const vendorId = btn.dataset.vendorId;
+          const isSuspended = btn.dataset.suspended === 'true';
+          if (!confirm(`Toggle suspension to ${!isSuspended}?`)) return;
+
+          await fetch(`/${adminEntryPath}/api/toggle-vendor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vendor_id: vendorId, updates: { is_suspended: !isSuspended } }),
+          });
+          window.location.reload();
+        });
+      });
+
+      // Check URL search parameters (e.g. from Dashboard reminder buttons)
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetVendor = urlParams.get('vendor');
+      const action = urlParams.get('action');
+      const targetListing = urlParams.get('listing');
+      if (targetVendor && action === 'report') {
+        loadReport(targetVendor, targetListing || undefined, '30d');
+      }
+    </script>
+  </body>
+</html>

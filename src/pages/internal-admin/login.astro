@@ -1,0 +1,118 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (adminToken) {
+  return Astro.redirect(`/${adminEntryPath}`, 302);
+}
+
+const isDev = import.meta.env.DEV;
+---
+
+<!DOCTYPE html>
+<html lang="mr" class="h-full bg-surface-canvas">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka — Super Admin Login</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col items-center justify-center p-4 relative">
+    <div class="absolute top-4 right-4 z-10">
+      <ThemeToggle storageKey="aheka_admin_theme" />
+    </div>
+
+    <div class="max-w-md w-full bg-white dark:bg-ink-surface rounded-3xl border border-surface-border p-8 shadow-soft">
+      <div class="text-center mb-8 notranslate" translate="no">
+        <LogoIcon size={56} className="w-14 h-14 rounded-2xl mx-auto mb-3 shadow-soft" />
+        <h1 class="text-2xl font-black text-ink-primary">
+          Aheka Admin
+        </h1>
+        <p class="text-xs text-ink-muted mt-1">
+          Platform Management & Verification Portal
+        </p>
+      </div>
+
+      <form id="login-form" class="space-y-5">
+        <div>
+          <label for="password" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">
+            Admin Password / Key
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            autocomplete="current-password"
+            placeholder="••••••••••••"
+            class="w-full px-4 py-3 rounded-xl border border-surface-border bg-surface-canvas dark:bg-ink-canvas focus:bg-white dark:focus:bg-ink-surface focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm text-ink-primary transition-all"
+          />
+        </div>
+
+        <div id="error-alert" class="hidden p-3 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 font-medium"></div>
+
+        <button
+          type="submit"
+          id="submit-btn"
+          class="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold text-sm py-3.5 rounded-xl shadow-xs transition-colors"
+        >
+          Sign In to Admin
+        </button>
+      </form>
+
+      {isDev && (
+        <div class="mt-6 text-center text-xs text-ink-muted">
+          Development dev key: <code class="font-mono bg-surface-muted px-1.5 py-0.5 rounded">aheka-admin-2026</code>
+        </div>
+      )}
+    </div>
+
+    <div id="admin-meta" data-entry-path={adminEntryPath} class="hidden"></div>
+    <script>
+      const adminEntryPath = document.getElementById('admin-meta')?.getAttribute('data-entry-path') || 'local-admin';
+      const form = document.getElementById('login-form');
+      const errBox = document.getElementById('error-alert');
+      const btn = document.getElementById('submit-btn');
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errBox?.classList.add('hidden');
+        if (btn) btn.textContent = 'Verifying...';
+
+        const pwd = (document.getElementById('password') as HTMLInputElement)?.value;
+
+        try {
+          const res = await fetch(`/${adminEntryPath}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd }),
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success) {
+            window.location.href = data.redirect || `/${adminEntryPath}`;
+          } else {
+            if (errBox) {
+              errBox.textContent = data.error || 'Invalid credentials';
+              errBox.classList.remove('hidden');
+            }
+            if (btn) btn.textContent = 'Sign In to Admin';
+          }
+        } catch {
+          if (errBox) {
+            errBox.textContent = 'Network error. Please try again.';
+            errBox.classList.remove('hidden');
+          }
+          if (btn) btn.textContent = 'Sign In to Admin';
+        }
+      });
+    </script>
+  </body>
+</html>

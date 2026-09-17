@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../lib/i18n';
+
+const { locale } = Astro.params;
+if (!locale || !isValidLocale(locale)) {
+  return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+}
+
+const safeLocale = locale as Locale;
+const isMr = safeLocale === 'mr';
+
+const pageTitle = isMr ? 'गोपनीयता धोरण (Privacy Policy) | Aheka' : 'Privacy Policy | Aheka';
+const pageDesc = isMr
+  ? 'Aheka वर तुमची माहिती कशी सुरक्षित ठेवली जाते याबद्दल माहिती.'
+  : 'Learn how Aheka collects, uses and protects customer and service provider data.';
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDesc}
+  locale={safeLocale}
+  canonicalPath={`/${safeLocale}/privacy`}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+    <div class="bg-white rounded-3xl border border-surface-border p-6 sm:p-12 shadow-soft space-y-6 text-ink-secondary text-sm sm:text-base leading-relaxed">
+      <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight">
+        {isMr ? 'गोपनीयता धोरण (Privacy Policy)' : 'Privacy Policy'}
+      </h1>
+      <p class="text-xs text-ink-muted">
+        {isMr ? 'शेवटचे अद्यतन: ७ सप्टेंबर २०२६' : 'Last updated: September 7, 2026'}
+      </p>
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-bold text-ink-primary">
+          {isMr ? '१. आम्ही कोणती माहिती गोळा करतो?' : '1. Information We Collect'}
+        </h2>
+        <p>
+          {isMr
+            ? 'Aheka वर ग्राहक कोणतेही खाते न उघडता थेट सेवा प्रदात्यांची माहिती पाहू शकतात. सेवा प्रदात्यांसाठी नाव, व्यवसायाचे नाव, मोबाईल क्रमांक, पत्ता आणि सेवा देणारा परिसर ही माहिती केवळ डिरेक्टरीमध्ये प्रदर्शित करण्यासाठी घेतली जाते.'
+            : 'General consumers can browse directory listings on Aheka without creating an account. For registered service providers, we collect provider name, business name, mobile number, address, and taluka coverage strictly for directory listing purposes.'}
+        </p>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-bold text-ink-primary">
+          {isMr ? '२. माहितीचा वापर' : '2. How We Use Information'}
+        </h2>
+        <p>
+          {isMr
+            ? 'सेवा प्रदात्यांनी दिलेली संपर्क माहिती ग्राहकांना थेट संपर्क साधता यावा यासाठी सार्वजनिक केली जाते. आम्ही वापरकर्त्यांची माहिती कोणत्याही तृतीय पक्षाला विकत नाही.'
+            : 'Provider contact details are published so local customers can contact them directly. We never sell user or provider data to third-party marketing companies.'}
+        </p>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-bold text-ink-primary">
+          {isMr ? '३. संपर्क' : '3. Contact'}
+        </h2>
+        <p>
+          {isMr
+            ? 'गोपनीयतेविषयी काही प्रश्न असल्यास आपण privacy@aheka.in वर संपर्क साधू शकता.'
+            : 'If you have any questions about this Privacy Policy, contact us at privacy@aheka.in.'}
+        </p>
+      </section>
+    </div>
+  </div>
+</BaseLayout>

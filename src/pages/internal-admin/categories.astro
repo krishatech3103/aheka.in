@@ -1,0 +1,287 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const categories = await repo.getAllCategoriesAdmin();
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Category Management</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas">
+    
+    <!-- Top Nav -->
+    <header class="bg-surface-elevated border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Applications</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/40">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Payments</a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href={`/${adminEntryPath}`} class="text-xs font-semibold text-ink-muted hover:text-ink-primary">← Dashboard</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+      
+      <!-- Page Header -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-elevated p-6 rounded-3xl border border-surface-border shadow-soft">
+        <div>
+          <h1 class="text-2xl font-black text-ink-primary">Service Categories</h1>
+          <p class="text-xs text-ink-muted mt-1">
+            Manage all directory services, Marathi/English names, aliases, featured status, and visibility.
+          </p>
+        </div>
+        <button id="btn-add-category" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+          </svg>
+          Add New Category
+        </button>
+      </div>
+
+      <!-- Categories Table -->
+      <div class="bg-surface-elevated rounded-3xl border border-surface-border shadow-soft overflow-hidden">
+        {categories.length === 0 ? (
+          <div class="p-12 text-center text-ink-muted">
+            <p class="text-base font-semibold">No categories yet — Add your first category.</p>
+          </div>
+        ) : (
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-surface-card border-b border-surface-border text-xs text-ink-secondary font-bold uppercase tracking-wider">
+                <tr>
+                  <th class="px-6 py-4">Sort</th>
+                  <th class="px-6 py-4">Category (EN / MR)</th>
+                  <th class="px-6 py-4">Slug</th>
+                  <th class="px-6 py-4">Icon</th>
+                  <th class="px-6 py-4">Search Aliases</th>
+                  <th class="px-6 py-4">Status</th>
+                  <th class="px-6 py-4">Featured</th>
+                  <th class="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-surface-border">
+                {categories.map((cat) => (
+                  <tr class="hover:bg-surface-card/50 transition">
+                    <td class="px-6 py-4 font-mono text-xs text-ink-muted font-bold">{cat.sort_order}</td>
+                    <td class="px-6 py-4 font-semibold text-ink-primary">
+                      <div>{cat.name_en}</div>
+                      <div class="text-xs text-brand-600 font-normal">{cat.name_mr}</div>
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-ink-secondary">{cat.slug}</td>
+                    <td class="px-6 py-4 text-xs font-mono bg-surface-card rounded px-2 py-0.5">{cat.icon_key}</td>
+                    <td class="px-6 py-4 text-xs text-ink-muted max-w-xs truncate">
+                      {cat.aliases && cat.aliases.length > 0 ? cat.aliases.join(', ') : '—'}
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        cat.is_visible
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+                      }`}>
+                        {cat.is_visible ? 'Visible' : 'Hidden'}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        cat.is_featured
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      }`}>
+                        {cat.is_featured ? '★ Featured' : 'Standard'}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                      <button
+                        class="btn-edit-cat px-3 py-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg border border-brand-200 dark:border-brand-800 transition cursor-pointer"
+                        data-cat={JSON.stringify(cat)}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </main>
+
+    <!-- Modal for Category Create / Edit -->
+    <div id="cat-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+      <div class="bg-surface-elevated w-full max-w-lg rounded-3xl border border-surface-border shadow-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-surface-border pb-3">
+          <h2 id="modal-title" class="text-lg font-bold text-ink-primary">Add Category</h2>
+          <button id="btn-close-modal" class="text-ink-muted hover:text-ink-primary text-xl font-bold cursor-pointer">&times;</button>
+        </div>
+        <form id="cat-form" class="space-y-3">
+          <input type="hidden" id="cat-id" value="" />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">English Name</label>
+              <input id="cat-name-en" type="text" required placeholder="e.g. Electrician" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">Marathi Name</label>
+              <input id="cat-name-mr" type="text" required placeholder="e.g. इलेक्ट्रिशियन" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">URL Slug</label>
+              <input id="cat-slug" type="text" required placeholder="e.g. electrician" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">Icon Key</label>
+              <input id="cat-icon" type="text" required placeholder="e.g. zap, droplet" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Search Aliases (comma-separated)</label>
+            <textarea id="cat-aliases" rows="2" placeholder="e.g. wiring, light, bijli, इन्व्हर्टर, वीज" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary"></textarea>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">Sort Order</label>
+              <input id="cat-sort" type="number" value="1" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="cat-visible" type="checkbox" checked class="w-4 h-4 rounded text-brand-600" />
+              <label for="cat-visible" class="text-xs font-semibold text-ink-primary">Visible</label>
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="cat-featured" type="checkbox" class="w-4 h-4 rounded text-brand-600" />
+              <label for="cat-featured" class="text-xs font-semibold text-ink-primary">Featured</label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-3 border-t border-surface-border">
+            <button type="button" id="btn-cancel" class="px-4 py-2 rounded-xl border border-surface-border text-xs font-semibold hover:bg-surface-card cursor-pointer">Cancel</button>
+            <button type="submit" id="btn-save" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition cursor-pointer">Save Category</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const modal = document.getElementById('cat-modal');
+      const form = document.getElementById('cat-form') as HTMLFormElement;
+      const modalTitle = document.getElementById('modal-title');
+      const catId = document.getElementById('cat-id') as HTMLInputElement;
+      const nameEn = document.getElementById('cat-name-en') as HTMLInputElement;
+      const nameMr = document.getElementById('cat-name-mr') as HTMLInputElement;
+      const slug = document.getElementById('cat-slug') as HTMLInputElement;
+      const icon = document.getElementById('cat-icon') as HTMLInputElement;
+      const aliases = document.getElementById('cat-aliases') as HTMLTextAreaElement;
+      const sort = document.getElementById('cat-sort') as HTMLInputElement;
+      const visible = document.getElementById('cat-visible') as HTMLInputElement;
+      const featured = document.getElementById('cat-featured') as HTMLInputElement;
+
+      document.getElementById('btn-add-category')?.addEventListener('click', () => {
+        catId.value = '';
+        form.reset();
+        visible.checked = true;
+        featured.checked = false;
+        if (modalTitle) modalTitle.textContent = 'Add New Category';
+        modal?.classList.remove('hidden');
+        modal?.classList.add('flex');
+      });
+
+      document.querySelectorAll('.btn-edit-cat').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const raw = btn.getAttribute('data-cat');
+          if (!raw) return;
+          const cat = JSON.parse(raw);
+          catId.value = cat.id;
+          nameEn.value = cat.name_en || '';
+          nameMr.value = cat.name_mr || '';
+          slug.value = cat.slug || '';
+          icon.value = cat.icon_key || '';
+          aliases.value = (cat.aliases || []).join(', ');
+          sort.value = cat.sort_order ?? 0;
+          visible.checked = Boolean(cat.is_visible);
+          featured.checked = Boolean(cat.is_featured);
+          if (modalTitle) modalTitle.textContent = 'Edit Category: ' + cat.name_en;
+          modal?.classList.remove('hidden');
+          modal?.classList.add('flex');
+        });
+      });
+
+      const closeModal = () => {
+        modal?.classList.add('hidden');
+        modal?.classList.remove('flex');
+      };
+
+      document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
+      document.getElementById('btn-cancel')?.addEventListener('click', closeModal);
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = catId.value;
+        const action = id ? 'update' : 'create';
+        const payload = {
+          action,
+          id: id || undefined,
+          data: {
+            name_en: nameEn.value.trim(),
+            name_mr: nameMr.value.trim(),
+            slug: slug.value.trim(),
+            icon_key: icon.value.trim(),
+            aliases: aliases.value.split(',').map((s) => s.trim()).filter(Boolean),
+            sort_order: Number(sort.value) || 0,
+            is_visible: visible.checked,
+            is_featured: featured.checked,
+          },
+        };
+
+        try {
+          const res = await fetch('/api/internal-admin/manage-category', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const result = await res.json();
+          if (result.success) {
+            window.location.reload();
+          } else {
+            alert('Error: ' + (result.error || 'Failed to save category'));
+          }
+        } catch (err: any) {
+          alert('Network Error: ' + err.message);
+        }
+      });
+    </script>
+  </body>
+</html>

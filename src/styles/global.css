@@ -1,0 +1,269 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --color-canvas: #fafaf7;
+    --color-card: #ffffff;
+    --color-surface-muted: #f4f4ee;
+    --color-border: #e6e6dc;
+    --color-ink-primary: #18181b;
+    --color-ink-secondary: #52525b;
+    --color-ink-muted: #71717a;
+    --color-ink-inverse: #fafafa;
+    --color-brand: #e65100;
+    --color-brand-hover: #bf360c;
+
+    /* Semantic tokens */
+    --color-primary: #e65100;
+    --color-primary-hover: #bf360c;
+    --color-primary-foreground: #ffffff;
+    --color-secondary: #f4f4ee;
+    --color-secondary-foreground: #18181b;
+    --color-muted: #71717a;
+    --color-success: #16a34a;
+    --color-warning: #d97706;
+    --color-danger: #dc2626;
+  }
+
+  .dark {
+    color-scheme: dark;
+    /* Deep warm charcoal/ink surfaces, never pure #000000 */
+    --color-canvas: #121214;
+    --color-card: #18181b;
+    --color-surface-muted: #242429;
+    --color-border: #323238;
+    --color-ink-primary: #f4f4f5;
+    --color-ink-secondary: #a1a1aa;
+    --color-ink-muted: #8e8e99;
+    --color-ink-inverse: #121214;
+    --color-brand: #f57c00;
+    --color-brand-hover: #ff9800;
+
+    /* Semantic tokens */
+    --color-primary: #f57c00;
+    --color-primary-hover: #ff9800;
+    --color-primary-foreground: #121214;
+    --color-secondary: #242429;
+    --color-secondary-foreground: #f4f4f5;
+    --color-muted: #8e8e99;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+  }
+
+  html {
+    font-family: 'Noto Sans Devanagari', 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--color-canvas);
+    color: var(--color-ink-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Prevent vertical clipping for Devanagari / Marathi glyphs with matras (matras above & below base line) */
+  body, button, input, select, textarea, p, span, h1, h2, h3, h4, h5, h6 {
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.35;
+  }
+
+  /* Ensure touch targets are at least 44px on mobile devices */
+  button, a, input, select {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Accessible focus indicators */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* =========================================================================
+   DARK THEME SEMANTIC ADAPTATIONS & COMPONENT OVERRIDES
+   ========================================================================= */
+
+.dark {
+  /* Common utility overrides */
+  .bg-white {
+    background-color: var(--color-card) !important;
+  }
+  .bg-white\/95 {
+    background-color: rgba(24, 24, 27, 0.95) !important;
+  }
+  .bg-white\/90 {
+    background-color: rgba(24, 24, 27, 0.9) !important;
+  }
+  .bg-white\/80 {
+    background-color: rgba(24, 24, 27, 0.8) !important;
+  }
+  .bg-gray-50,
+  .bg-neutral-50,
+  .bg-zinc-50 {
+    background-color: var(--color-surface-muted) !important;
+  }
+  .border-gray-100,
+  .border-gray-200,
+  .border-gray-300,
+  .border-neutral-200,
+  .border-zinc-200 {
+    border-color: var(--color-border) !important;
+  }
+  .text-gray-900,
+  .text-neutral-900,
+  .text-zinc-900 {
+    color: var(--color-ink-primary) !important;
+  }
+  .text-gray-800,
+  .text-gray-700,
+  .text-neutral-700,
+  .text-zinc-700 {
+    color: var(--color-ink-secondary) !important;
+  }
+  .text-gray-600,
+  .text-gray-500,
+  .text-neutral-500,
+  .text-zinc-500 {
+    color: var(--color-ink-muted) !important;
+  }
+
+  /* Form controls & inputs */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    background-color: var(--color-canvas) !important;
+    color: var(--color-ink-primary) !important;
+    border-color: var(--color-border) !important;
+  }
+  input:focus,
+  textarea:focus,
+  select:focus {
+    background-color: var(--color-card) !important;
+    border-color: var(--color-brand) !important;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-ink-muted) !important;
+  }
+  select option {
+    background-color: var(--color-card);
+    color: var(--color-ink-primary);
+  }
+
+  /* Status badges in dark mode - high contrast, accessible */
+  .bg-emerald-50 {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+    color: #6ee7b7 !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+  }
+  .text-emerald-800,
+  .text-emerald-700 {
+    color: #6ee7b7 !important;
+  }
+
+  .bg-green-50 {
+    background-color: rgba(34, 197, 94, 0.15) !important;
+    color: #86efac !important;
+    border-color: rgba(34, 197, 94, 0.35) !important;
+  }
+  .text-green-800,
+  .text-green-700 {
+    color: #86efac !important;
+  }
+
+  .bg-amber-50 {
+    background-color: rgba(245, 158, 11, 0.15) !important;
+    color: #fcd34d !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+  }
+  .text-amber-800,
+  .text-amber-700 {
+    color: #fcd34d !important;
+  }
+
+  .bg-rose-50,
+  .bg-red-50 {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    color: #fca5a5 !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+  }
+  .text-rose-800,
+  .text-rose-700,
+  .text-red-700,
+  .text-red-800 {
+    color: #fca5a5 !important;
+  }
+
+  .bg-purple-50 {
+    background-color: rgba(168, 85, 247, 0.15) !important;
+    color: #d8b4fe !important;
+    border-color: rgba(168, 85, 247, 0.35) !important;
+  }
+  .text-purple-800,
+  .text-purple-700 {
+    color: #d8b4fe !important;
+  }
+
+  .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    color: #93c5fd !important;
+    border-color: rgba(59, 130, 246, 0.35) !important;
+  }
+  .text-blue-800,
+  .text-blue-700 {
+    color: #93c5fd !important;
+  }
+
+  .bg-brand-50 {
+    background-color: rgba(230, 81, 0, 0.15) !important;
+    color: #fdba74 !important;
+    border-color: rgba(230, 81, 0, 0.35) !important;
+  }
+  .text-brand-700,
+  .text-brand-800 {
+    color: #fdba74 !important;
+  }
+
+  /* Dialog and modal backdrop styling */
+  dialog {
+    background-color: var(--color-card) !important;
+    color: var(--color-ink-primary) !important;
+    border-color: var(--color-border) !important;
+  }
+  dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+  }
+
+  /* Protect vendor profile photos & business images from inversion or filters */
+  img,
+  video {
+    filter: none !important;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+}

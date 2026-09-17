@@ -1,0 +1,205 @@
+---
+import { getDictionary, type Locale } from '../lib/i18n';
+import LogoIcon from './LogoIcon.astro';
+import type { District, Taluka, Category } from '../lib/types/database';
+import { getDataRepository, getLocalizedCategoryName } from '../lib/repositories/dataRepository';
+
+interface Props {
+  locale: Locale;
+  districts?: District[];
+  talukas?: Taluka[];
+  categories?: Category[];
+  currentDistrictSlug?: string;
+  currentTalukaSlug?: string;
+}
+
+const {
+  locale,
+  districts: propDistricts,
+  talukas: propTalukas,
+  categories: propCategories,
+  currentDistrictSlug,
+  currentTalukaSlug,
+} = Astro.props;
+
+const dict = getDictionary(locale);
+const isMr = locale === 'mr';
+const currentYear = new Date().getFullYear();
+
+// Fallback fetch from repository if not provided
+const repo = getDataRepository();
+const districts = propDistricts || await repo.getDistricts();
+const talukas = propTalukas || await repo.getTalukas();
+const categories = propCategories || await repo.getCategories();
+
+// Filter active locations only (4–6 talukas, prioritizing featured)
+const activeDistricts = districts.filter(d => d.is_active);
+const activeTalukas = talukas
+  .filter(t => t.is_active && activeDistricts.some(d => d.id === t.district_id))
+  .sort((a, b) => {
+    if (a.is_featured && !b.is_featured) return -1;
+    if (!a.is_featured && b.is_featured) return 1;
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  })
+  .slice(0, 6);
+
+// Filter visible categories only (5–6 categories, prioritizing featured)
+const popularCategories = categories
+  .filter(c => c.is_visible)
+  .sort((a, b) => {
+    if (a.is_featured && !b.is_featured) return -1;
+    if (!a.is_featured && b.is_featured) return 1;
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  })
+  .slice(0, 6);
+---
+
+<footer class="bg-white dark:bg-ink-surface border-t border-surface-border mt-16 sm:mt-24 pt-12 sm:pt-16 pb-12 transition-colors">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Desktop: 4 columns | Mobile: clean stacked sections (Brand -> Services -> Talukas -> Legal) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8 lg:gap-12">
+      
+      <!-- 1. Aheka Brand -->
+      <div class="space-y-3.5 notranslate" translate="no">
+        <a href={`/${locale}`} class="flex items-center gap-2.5 group">
+          <LogoIcon size={36} className="w-9 h-9 rounded-xl shadow-xs group-hover:scale-105 transition-transform" />
+          <span class="text-xl font-black tracking-tight text-ink-primary flex items-center gap-1.5">
+            Aheka
+            <span class="text-brand-600 dark:text-brand-400 font-extrabold text-xs bg-brand-50 dark:bg-brand-950/60 px-1.5 py-0.5 rounded border border-brand-200 dark:border-brand-800">
+              आहे का?
+            </span>
+          </span>
+        </a>
+        <p class="text-xs sm:text-sm text-ink-secondary leading-relaxed">
+          {dict.footer.aboutText}
+        </p>
+        <div class="pt-1">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+            <span>🇮🇳</span>
+            <span>{dict.footer.madeForMaharashtra}</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- 2. Popular Services (Dynamic from Database) -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-ink-primary mb-3.5 flex items-center justify-between">
+          <span>{dict.footer.popularServices}</span>
+          <a
+            href={`/${locale}/services`}
+            class="text-[11px] text-brand-600 dark:text-brand-400 font-semibold hover:underline normal-case"
+          >
+            {isMr ? 'सर्व सेवा →' : 'All →'}
+          </a>
+        </h4>
+        <ul class="space-y-2.5 text-xs sm:text-sm text-ink-secondary">
+          {popularCategories.length > 0 ? (
+            popularCategories.map((cat) => {
+              const localizedName = getLocalizedCategoryName(cat, locale);
+              const targetUrl = currentDistrictSlug && currentTalukaSlug
+                ? `/${locale}/${currentDistrictSlug}/${currentTalukaSlug}/${cat.slug}`
+                : `/${locale}/services#${cat.slug}`;
+
+              return (
+                <li>
+                  <a
+                    href={targetUrl}
+                    class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  >
+                    {localizedName}
+                  </a>
+                </li>
+              );
+            })
+          ) : (
+            <li class="text-xs text-ink-muted italic">
+              {isMr ? 'लवकरच सेवा जोडल्या जातील' : 'Services coming soon'}
+            </li>
+          )}
+        </ul>
+      </div>
+
+      <!-- 3. Key Talukas (Dynamic from Database) -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-ink-primary mb-3.5 flex items-center justify-between">
+          <span>{dict.footer.keyTalukas}</span>
+          <button
+            type="button"
+            onclick="document.getElementById('location-dialog')?.showModal()"
+            class="text-[11px] text-brand-600 dark:text-brand-400 font-semibold hover:underline normal-case"
+          >
+            {isMr ? 'स्थान बदला' : 'Change'}
+          </button>
+        </h4>
+        <ul class="space-y-2.5 text-xs sm:text-sm text-ink-secondary notranslate" translate="no">
+          {activeTalukas.length > 0 ? (
+            activeTalukas.map((taluka) => {
+              const district = activeDistricts.find(d => d.id === taluka.district_id);
+              if (!district) return null;
+              return (
+                <li>
+                  <a
+                    href={`/${locale}/${district.slug}/${taluka.slug}`}
+                    class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  >
+                    {isMr ? taluka.name_mr : taluka.name_en} ({isMr ? district.name_mr : district.name_en})
+                  </a>
+                </li>
+              );
+            })
+          ) : (
+            <li class="text-xs text-ink-muted italic">
+              {isMr ? 'लवकरच तालुके जोडले जातील' : 'Locations coming soon'}
+            </li>
+          )}
+        </ul>
+      </div>
+
+      <!-- 4. Legal & Trust Links -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-ink-primary mb-3.5">
+          {dict.footer.legal}
+        </h4>
+        <ul class="space-y-2.5 text-xs sm:text-sm text-ink-secondary">
+          <li>
+            <a href={`/${locale}/about`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+              {dict.nav.about}
+            </a>
+          </li>
+          <li>
+            <a href={`/${locale}/privacy`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+              {dict.nav.privacy}
+            </a>
+          </li>
+          <li>
+            <a href={`/${locale}/terms`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+              {dict.nav.terms}
+            </a>
+          </li>
+          <li>
+            <a href={`/${locale}/provider-terms`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+              {dict.nav.providerTerms}
+            </a>
+          </li>
+          <li class="pt-1">
+            <a href={`/${locale}/join`} class="text-brand-600 dark:text-brand-400 font-bold hover:underline">
+              {dict.nav.join} →
+            </a>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Bottom Bar: Dynamic Copyright & Subtitle (NO public admin link) -->
+    <div class="mt-12 pt-6 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-muted">
+      <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
+        <p>© {currentYear} Aheka (aheka.in). {dict.footer.copyright}</p>
+        <span class="hidden sm:inline text-ink-muted/40">•</span>
+        <p class="text-[11px] text-ink-secondary">
+          {dict.footer.connectingText}
+        </p>
+      </div>
+    </div>
+  </div>
+</footer>

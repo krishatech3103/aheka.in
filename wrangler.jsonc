@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aheka",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "vars": {
+    "SITE_URL": "https://aheka.in",
+    "PUBLIC_SUPABASE_URL": "https://your-project.supabase.co",
+    "PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",
+    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAA...",
+    "SEO_MIN_ACTIVE_PROVIDERS": "3"
+  }
+}

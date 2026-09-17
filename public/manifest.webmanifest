@@ -1,0 +1,29 @@
+{
+  "name": "Aheka — आहे का? Local Services",
+  "short_name": "Aheka",
+  "description": "Hyperlocal service-provider discovery platform for Maharashtra.",
+  "start_url": "/mr",
+  "display": "standalone",
+  "background_color": "#fafaf7",
+  "theme_color": "#e65100",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["lifestyle", "business", "utilities"]
+}

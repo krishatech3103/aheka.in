@@ -1,0 +1,367 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+import { getRemainingDays } from '../../lib/business/slotEnforcement';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const metrics = await repo.getAdminMetrics();
+const trialMetrics = await repo.getAdminTrialMetrics();
+const applications = await repo.getAdminApplications();
+const vendors = await repo.getAdminVendors();
+
+const now = new Date();
+
+// Identify trials expiring soon (within 7 days)
+const expiringTrialsList: Array<{
+  vendor: typeof vendors[0];
+  listing: typeof vendors[0]['listings'][0];
+  daysLeft: number;
+  endsAt: string;
+}> = [];
+
+// Identify subscriptions renewing soon (within 30 days)
+const renewingSubsList: Array<{
+  vendor: typeof vendors[0];
+  listing: typeof vendors[0]['listings'][0];
+  daysLeft: number;
+  endsAt: string;
+}> = [];
+
+vendors.forEach(v => {
+  v.listings.forEach(l => {
+    if (l.current_trial && l.current_trial.status === 'active') {
+      const days = getRemainingDays(l.current_trial.ends_at, now);
+      if (days >= 0 && days <= 7) {
+        expiringTrialsList.push({
+          vendor: v,
+          listing: l,
+          daysLeft: days,
+          endsAt: l.current_trial.ends_at,
+        });
+      }
+    }
+    if (l.subscription && l.subscription.status === 'active') {
+      const days = getRemainingDays(l.subscription.ends_at, now);
+      if (days >= 0 && days <= 30) {
+        renewingSubsList.push({
+          vendor: v,
+          listing: l,
+          daysLeft: days,
+          endsAt: l.subscription.ends_at,
+        });
+      }
+    }
+  });
+});
+
+expiringTrialsList.sort((a, b) => a.daysLeft - b.daysLeft);
+renewingSubsList.sort((a, b) => a.daysLeft - b.daysLeft);
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-surface-canvas">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Dashboard & Trial Operations</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary">
+    
+    <!-- Top Nav -->
+    <header class="bg-white border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Applications ({metrics.pendingApplications})</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Payments</a>
+          </nav>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href="/mr" target="_blank" class="text-xs font-semibold text-brand-700 hover:underline">
+            View Live Site ↗
+          </a>
+          <button
+            id="logout-btn"
+            class="text-xs px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:text-ink-primary hover:bg-surface-muted"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-10">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-ink-primary">
+          Platform & Free Trial Operations
+        </h1>
+        <p class="text-xs sm:text-sm text-ink-muted mt-1">
+          Real-time metrics, trial lifecycle tracking, and renewal reminders for Maharashtra hyperlocal operations
+        </p>
+      </div>
+
+      <!-- Core Platform Metrics Grid -->
+      <div>
+        <div class="text-xs font-bold uppercase tracking-wider text-ink-muted mb-3">Overall Platform Summary</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Total Vendors</div>
+            <div class="text-2xl sm:text-3xl font-black text-ink-primary mt-1.5">{metrics.totalVendors}</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-green-700">Active Listings (Paid + Trial)</div>
+            <div class="text-2xl sm:text-3xl font-black text-green-600 mt-1.5">{metrics.activeListings}</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Waitlisted (10-Slot)</div>
+            <div class="text-2xl sm:text-3xl font-black text-amber-600 mt-1.5">{metrics.waitlistedListings}</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-brand-700">Pending Apps</div>
+            <div class="text-2xl sm:text-3xl font-black text-brand-600 mt-1.5">{metrics.pendingApplications}</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-surface-border shadow-2xs col-span-2 sm:col-span-1">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Total Paid Revenue</div>
+            <div class="text-2xl sm:text-3xl font-black text-ink-primary mt-1.5">₹{metrics.totalRevenue.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 2: 30-Day Free Trial Funnel & Conversion Metrics -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs font-bold uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
+            <span>⚡ 30-Day Free Trial Funnel & Performance</span>
+          </div>
+          <a href={`/${adminEntryPath}/vendors`} class="text-xs font-semibold text-brand-600 hover:underline">
+            Manage All Trials & Conversions →
+          </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-blue-700">Active Trials</div>
+            <div class="text-2xl sm:text-3xl font-black text-blue-600 mt-1">{trialMetrics.activeTrials}</div>
+            <div class="text-[10px] text-ink-muted mt-0.5">Equal fair rotation</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/30 shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-amber-800">Expiring ≤ 7 Days</div>
+            <div class="text-2xl sm:text-3xl font-black text-amber-700 mt-1">{trialMetrics.trialsExpiring7Days}</div>
+            <div class="text-[10px] text-amber-700 mt-0.5">Ready for follow-up</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-red-200 bg-red-50/30 shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-red-800">Expiring ≤ 3 Days</div>
+            <div class="text-2xl sm:text-3xl font-black text-red-700 mt-1">{trialMetrics.trialsExpiring3Days}</div>
+            <div class="text-[10px] text-red-700 mt-0.5">Urgent reminder</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-surface-border shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Expired Unpaid</div>
+            <div class="text-2xl sm:text-3xl font-black text-ink-primary mt-1">{trialMetrics.expiredUnpaidTrials}</div>
+            <div class="text-[10px] text-ink-muted mt-0.5">Hidden from public</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-green-200 bg-green-50/30 shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-green-800">Converted to Paid</div>
+            <div class="text-2xl sm:text-3xl font-black text-green-700 mt-1">{trialMetrics.convertedTrials}</div>
+            <div class="text-[10px] text-green-700 mt-0.5">₹999/yr annual</div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-brand-200 bg-brand-50/30 shadow-2xs">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-brand-800">Conversion Rate</div>
+            <div class="text-2xl sm:text-3xl font-black text-brand-700 mt-1">{trialMetrics.trialConversionRate}%</div>
+            <div class="text-[10px] text-brand-700 mt-0.5">Converted / Completed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actionable Reminders Section: Trials Expiring & Renewals Due -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Trials Nearing Expiry Widget -->
+        <div class="bg-white rounded-2xl border border-surface-border p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <h2 class="font-bold text-base text-ink-primary">Free Trials Requiring Follow-Up</h2>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">
+              {expiringTrialsList.length} Pending
+            </span>
+          </div>
+
+          {expiringTrialsList.length > 0 ? (
+            <div class="divide-y divide-surface-border">
+              {expiringTrialsList.slice(0, 5).map(item => (
+                <div class="py-3 flex items-center justify-between text-sm">
+                  <div>
+                    <div class="font-bold text-ink-primary flex items-center gap-1.5">
+                      <span>{item.vendor.provider_name}</span>
+                      <span class="text-xs font-normal text-ink-muted">({item.listing.category.name_mr} • {item.listing.taluka.name_mr})</span>
+                    </div>
+                    <div class="text-xs text-ink-muted mt-0.5">
+                      Ends: {new Date(item.endsAt).toLocaleDateString('en-IN')} • 
+                      <strong class={item.daysLeft <= 3 ? 'text-red-600 font-bold' : 'text-amber-700 font-bold'}>
+                        {item.daysLeft === 0 ? 'Expires today' : `${item.daysLeft} days left`}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`/${adminEntryPath}/vendors?vendor=${item.vendor.id}&action=report&listing=${item.listing.id}`}
+                    class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors flex items-center gap-1"
+                  >
+                    <span>Send Report ↗</span>
+                  </a>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="text-xs text-ink-muted py-6 text-center">
+              No free trials expiring within the next 7 days.
+            </div>
+          )}
+        </div>
+
+        <!-- Subscriptions Renewing Soon Widget -->
+        <div class="bg-white rounded-2xl border border-surface-border p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+              <h2 class="font-bold text-base text-ink-primary">Paid Subscriptions Nearing Renewal</h2>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">
+              {renewingSubsList.length} Due (≤ 30d)
+            </span>
+          </div>
+
+          {renewingSubsList.length > 0 ? (
+            <div class="divide-y divide-surface-border">
+              {renewingSubsList.slice(0, 5).map(item => (
+                <div class="py-3 flex items-center justify-between text-sm">
+                  <div>
+                    <div class="font-bold text-ink-primary flex items-center gap-1.5">
+                      <span>{item.vendor.provider_name}</span>
+                      <span class="text-xs font-normal text-ink-muted">({item.listing.category.name_mr} • {item.listing.taluka.name_mr})</span>
+                    </div>
+                    <div class="text-xs text-ink-muted mt-0.5">
+                      Expires: {new Date(item.endsAt).toLocaleDateString('en-IN')} • 
+                      <strong class="text-blue-700 font-bold">{item.daysLeft} days remaining</strong>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`/${adminEntryPath}/vendors?vendor=${item.vendor.id}&action=report&listing=${item.listing.id}`}
+                    class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-muted hover:bg-surface-border text-ink-primary transition-colors"
+                  >
+                    Renewal Notice ↗
+                  </a>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="text-xs text-ink-muted py-6 text-center">
+              No paid subscriptions due for renewal in the next 30 days.
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      <!-- Quick Action Sections -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Pending Applications Widget -->
+        <div class="bg-white rounded-2xl border border-surface-border p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-lg text-ink-primary">Recent Provider Applications</h2>
+            <a href={`/${adminEntryPath}/applications`} class="text-xs font-semibold text-brand-600 hover:underline">View All →</a>
+          </div>
+
+          {applications.length > 0 ? (
+            <div class="divide-y divide-surface-border">
+              {applications.slice(0, 5).map((app) => (
+                <div class="py-3 flex items-center justify-between text-sm">
+                  <div>
+                    <div class="font-bold text-ink-primary">{app.provider_name}</div>
+                    <div class="text-xs text-ink-muted">{app.mobile} • {app.business_name || 'No shop name'}</div>
+                  </div>
+                  <span class="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-medium">
+                    {app.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="text-xs text-ink-muted py-6 text-center">No pending applications</div>
+          )}
+        </div>
+
+        <!-- Active Vendors Widget -->
+        <div class="bg-white rounded-2xl border border-surface-border p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-lg text-ink-primary">Registered Service Providers</h2>
+            <a href={`/${adminEntryPath}/vendors`} class="text-xs font-semibold text-brand-600 hover:underline">Manage All →</a>
+          </div>
+
+          <div class="divide-y divide-surface-border">
+            {vendors.slice(0, 5).map((v) => (
+              <div class="py-3 flex items-center justify-between text-sm">
+                <div>
+                  <div class="font-bold text-ink-primary flex items-center gap-1.5">
+                    <span>{v.provider_name}</span>
+                    {v.is_verified && <span class="text-green-600 text-xs font-bold">✓</span>}
+                  </div>
+                  <div class="text-xs text-ink-muted">{v.mobile} • {v.listings.length} listing(s)</div>
+                </div>
+                <span class={`text-xs px-2.5 py-1 rounded-full font-medium ${v.approval_status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-surface-muted text-ink-secondary'}`}>
+                  {v.approval_status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <div id="admin-meta" data-entry-path={adminEntryPath} class="hidden"></div>
+    <script>
+      const adminEntryPath = document.getElementById('admin-meta')?.getAttribute('data-entry-path') || 'local-admin';
+      document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        await fetch(`/${adminEntryPath}/api/logout`, { method: 'POST' });
+        window.location.href = `/${adminEntryPath}/login`;
+      });
+    </script>
+  </body>
+</html>

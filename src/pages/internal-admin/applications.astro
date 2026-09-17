@@ -1,0 +1,126 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const applications = await repo.getAdminApplications();
+const districts = await repo.getDistricts();
+const talukas = await repo.getTalukas();
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-surface-canvas">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Applications</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary">
+    
+    <!-- Top Nav -->
+    <header class="bg-white border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50">Applications ({applications.length})</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Payments</a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href={`/${adminEntryPath}`} class="text-xs font-semibold text-ink-muted hover:text-ink-primary">← Back to Overview</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+      <div class="mb-6 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-black text-ink-primary">Provider Applications</h1>
+          <p class="text-xs text-ink-muted mt-0.5">Review incoming submissions and verify local service providers</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-surface-border overflow-hidden shadow-soft">
+        <div class="divide-y divide-surface-border">
+          {applications.map((app) => {
+            const district = districts.find(d => d.id === app.district_id);
+            const taluka = talukas.find(t => t.id === app.taluka_id);
+            return (
+              <div class="p-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:bg-surface-canvas/50 transition-colors">
+                <div class="flex-1 space-y-2">
+                  <div class="flex items-center gap-3">
+                    <span class="font-bold text-base text-ink-primary">{app.provider_name}</span>
+                    {app.business_name && (
+                      <span class="text-xs font-medium text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-md border border-brand-200">
+                        {app.business_name}
+                      </span>
+                    )}
+                    <span class="text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-50 text-amber-700">
+                      {app.status}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-4 text-xs text-ink-muted flex-wrap">
+                    <span><strong>Mobile:</strong> <a href={`tel:${app.mobile}`} class="text-brand-600 underline font-mono">{app.mobile}</a></span>
+                    {app.whatsapp_number && (
+                      <span><strong>WhatsApp:</strong> <a href={`https://wa.me/${app.whatsapp_number.replace(/[^\d]/g, '')}`} target="_blank" class="text-green-600 underline font-mono">{app.whatsapp_number}</a></span>
+                    )}
+                    <span><strong>Location:</strong> {taluka?.name_mr} ({district?.name_mr})</span>
+                    <span><strong>Experience:</strong> {app.experience_years} years</span>
+                  </div>
+
+                  <div class="text-xs text-ink-secondary">
+                    <strong>Address:</strong> {app.full_address}
+                  </div>
+
+                  <div class="text-xs text-ink-secondary">
+                    <strong>Coverage:</strong> {app.service_areas_text}
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <a
+                    href={`tel:${app.mobile}`}
+                    class="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs transition-colors shadow-2xs"
+                  >
+                    Call Candidate
+                  </a>
+                  <button
+                    type="button"
+                    onclick={`alert('To approve this candidate, navigate to Vendors & Slots to assign taluka slot and record subscription payment.')`}
+                    class="px-3.5 py-2 rounded-xl border border-surface-border text-xs font-semibold text-ink-primary hover:bg-surface-muted transition-colors"
+                  >
+                    Review & Onboard
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </main>
+
+  </body>
+</html>

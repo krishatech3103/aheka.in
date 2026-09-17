@@ -1,0 +1,129 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const payments = await repo.getPayments();
+const metrics = await repo.getAdminMetrics();
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Payments & Subscriptions</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas">
+    
+    <!-- Top Nav -->
+    <header class="bg-surface-elevated border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Applications</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/40">Payments</a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href={`/${adminEntryPath}`} class="text-xs font-semibold text-ink-muted hover:text-ink-primary">← Dashboard</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+      
+      <!-- Page Header & Summary -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-elevated p-6 rounded-3xl border border-surface-border shadow-soft">
+        <div>
+          <h1 class="text-2xl font-black text-ink-primary">Manual Payments & Subscriptions</h1>
+          <p class="text-xs text-ink-muted mt-1">
+            Audit manual UPI, cash, bank transfer subscriptions (₹999/yr commercial fee per listing).
+          </p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="bg-surface-card px-4 py-2 rounded-2xl border border-surface-border">
+            <div class="text-xs text-ink-muted">Total Recorded Revenue</div>
+            <div class="text-xl font-black text-brand-600 font-mono">₹{metrics.totalRevenue.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payments Table -->
+      <div class="bg-surface-elevated rounded-3xl border border-surface-border shadow-soft overflow-hidden">
+        {payments.length === 0 ? (
+          <div class="p-12 text-center text-ink-muted">
+            <p class="text-base font-semibold">No payment records recorded yet.</p>
+            <p class="text-xs mt-1">When listings are converted or activated with payment details, they appear here.</p>
+          </div>
+        ) : (
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-surface-card border-b border-surface-border text-xs text-ink-secondary font-bold uppercase tracking-wider">
+                <tr>
+                  <th class="px-6 py-4">Date</th>
+                  <th class="px-6 py-4">Amount</th>
+                  <th class="px-6 py-4">Method</th>
+                  <th class="px-6 py-4">Reference / UTR</th>
+                  <th class="px-6 py-4">Status</th>
+                  <th class="px-6 py-4">Notes</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-surface-border">
+                {payments.map((p) => (
+                  <tr class="hover:bg-surface-card/50 transition">
+                    <td class="px-6 py-4 text-xs font-mono text-ink-secondary">
+                      {new Date(p.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td class="px-6 py-4 font-mono font-bold text-ink-primary">
+                      ₹{Number(p.amount).toLocaleString('en-IN')} {p.currency}
+                    </td>
+                    <td class="px-6 py-4 font-semibold text-xs uppercase tracking-wider">
+                      <span class="bg-surface-card px-2 py-1 rounded-md border border-surface-border">
+                        {p.payment_method}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-ink-primary font-medium">
+                      {p.reference_number || '—'}
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                        Recorded
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-ink-muted max-w-sm truncate">
+                      {p.notes || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </main>
+  </body>
+</html>

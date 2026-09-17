@@ -1,0 +1,247 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import ProviderCard from '../../../../components/ProviderCard.astro';
+import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../../lib/i18n';
+import { getDataRepository } from '../../../../lib/repositories/dataRepository';
+import { shouldIndexDirectoryPage } from '../../../../lib/business/slotEnforcement';
+
+const { locale, district: districtSlug, taluka: talukaSlug, category: categorySlug } = Astro.params;
+if (!locale || !isValidLocale(locale)) {
+  return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+}
+
+const safeLocale = locale as Locale;
+const dict = getDictionary(safeLocale);
+const isMr = safeLocale === 'mr';
+
+const repo = getDataRepository();
+const taluka = await repo.getTalukaBySlugs(districtSlug || '', talukaSlug || '');
+const category = await repo.getCategoryBySlug(categorySlug || '');
+
+if (!taluka || !taluka.district || !category) {
+  return new Response('Category directory not found', { status: 404 });
+}
+
+// Fetch deterministically rotated active eligible providers for today
+const providers = await repo.getRotatedProviders(taluka.id, category.id, new Date());
+const allCategories = await repo.getCategories();
+
+// Fetch custom SEO & intro settings if present
+const dirSettings = await repo.getDirectoryPageSettings(taluka.id, category.id);
+
+// SEO indexability rule: If < 3 providers, apply noindex, follow to avoid doorway penalties
+const isIndexable = shouldIndexDirectoryPage(
+  providers.length,
+  3,
+  dirSettings?.indexability_override
+);
+const robotsMeta = isIndexable ? 'index, follow' : 'noindex, follow';
+
+const categoryName = isMr ? category.name_mr : category.name_en;
+const talukaName = isMr ? taluka.name_mr : taluka.name_en;
+const districtName = isMr ? taluka.district.name_mr : taluka.district.name_en;
+
+const pageTitle = isMr
+  ? `${categoryName} — ${talukaName} (${districtName}) | Aheka`
+  : `${categoryName} in ${talukaName}, ${districtName} | Aheka`;
+
+const pageDesc = isMr
+  ? `${talukaName} तालुक्यातील विश्वासू ${categoryName} सेवा प्रदात्यांची यादी. थेट फोन किंवा व्हॉट्सॲपवर संपर्क करा.`
+  : `Find top-rated, verified ${categoryName} service providers in ${talukaName}, ${districtName}. Direct contact via Call or WhatsApp.`;
+
+// Schema.org ItemList JSON-LD
+const itemListSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: `${categoryName} in ${talukaName}`,
+  description: pageDesc,
+  numberOfItems: providers.length,
+  itemListElement: providers.map((p, idx) => ({
+    '@type': 'ListItem',
+    position: idx + 1,
+    item: {
+      '@type': 'LocalBusiness',
+      name: p.provider_name,
+      legalName: p.business_name || p.provider_name,
+      url: `https://aheka.in/${safeLocale}/provider/${p.slug}`,
+      telephone: p.mobile,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: p.full_address,
+        addressLocality: taluka.name_en,
+        addressRegion: 'Maharashtra',
+        addressCountry: 'IN',
+      },
+    },
+  })),
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: dict.directory.breadcrumbsHome,
+      item: `https://aheka.in/${safeLocale}`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: `${districtName} ${isMr ? 'जिल्हा' : 'District'}`,
+      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 3,
+      name: `${talukaName} ${isMr ? 'तालुका' : 'Taluka'}`,
+      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}/${taluka.slug}`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 4,
+      name: categoryName,
+      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}/${taluka.slug}/${category.slug}`,
+    },
+  ],
+};
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDesc}
+  locale={safeLocale}
+  canonicalPath={`/${safeLocale}/${taluka.district.slug}/${taluka.slug}/${category.slug}`}
+  robots={robotsMeta}
+  currentTalukaName={talukaName}
+  currentDistrictSlug={taluka.district.slug}
+  currentTalukaSlug={taluka.slug}
+  schemaJsonLd={[breadcrumbSchema, itemListSchema]}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    
+    <!-- Breadcrumbs -->
+    <nav class="flex items-center gap-2 text-xs sm:text-sm text-ink-muted mb-6 flex-wrap" aria-label="Breadcrumb">
+      <a href={`/${safeLocale}`} class="hover:text-brand-600 transition-colors">
+        {dict.directory.breadcrumbsHome}
+      </a>
+      <span>/</span>
+      <a href={`/${safeLocale}/${taluka.district.slug}`} class="hover:text-brand-600 transition-colors">
+        {districtName}
+      </a>
+      <span>/</span>
+      <a href={`/${safeLocale}/${taluka.district.slug}/${taluka.slug}`} class="hover:text-brand-600 transition-colors">
+        {talukaName}
+      </a>
+      <span>/</span>
+      <span class="text-ink-primary font-medium">
+        {categoryName}
+      </span>
+    </nav>
+
+    <!-- Page Header & Slots Indicator -->
+    <div class="bg-white rounded-3xl border border-surface-border p-6 sm:p-8 shadow-soft mb-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-bold border border-brand-200">
+              <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+              <span>{talukaName}, {districtName}</span>
+            </span>
+
+            <!-- 10-Slot Limit Badge -->
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-surface-muted text-ink-secondary text-xs font-semibold border border-surface-border">
+              <span>{providers.length}/10 {isMr ? 'जागा भरल्या' : 'Slots Occupied'}</span>
+            </span>
+          </div>
+
+          <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight">
+            {talukaName} {isMr ? 'मधील' : 'in'} {categoryName}
+          </h1>
+
+          <p class="mt-2 text-xs sm:text-sm text-ink-secondary leading-relaxed max-w-3xl">
+            {dirSettings && (isMr ? dirSettings.intro_mr : dirSettings.intro_en)
+              ? (isMr ? dirSettings.intro_mr : dirSettings.intro_en)
+              : (isMr
+                ? `${talukaName} परिसरातील पात्र आणि पडताळणी झालेले ${categoryName}. कोणत्याही मध्यस्थाशिवाय थेट संपर्क साधा.`
+                : `Verified ${categoryName} service providers operating in and around ${talukaName}. Contact directly without platform fees.`)}
+          </p>
+        </div>
+
+        <a
+          href={`/${safeLocale}/join`}
+          class="inline-flex items-center justify-center gap-1.5 bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl border border-brand-200 hover:border-brand-600 transition-colors whitespace-nowrap self-start md:self-center"
+        >
+          <span>{isMr ? 'येथे नोंदणी करा' : 'List Your Service'}</span>
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </a>
+      </div>
+
+      <!-- Fair Rotation Notice -->
+      <div class="mt-4 pt-4 border-t border-surface-border flex items-center gap-2 text-[11px] sm:text-xs text-ink-muted">
+        <svg class="w-4 h-4 text-brand-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>{dict.directory.dailyRotationNote}</span>
+      </div>
+    </div>
+
+    <!-- Providers List -->
+    {providers.length > 0 ? (
+      <div class="space-y-4">
+        {providers.map((p) => (
+          <ProviderCard
+            provider={p}
+            locale={safeLocale}
+            categoryName={categoryName}
+            talukaName={talukaName}
+          />
+        ))}
+      </div>
+    ) : (
+      <!-- Empty State with Join CTA -->
+      <div class="bg-white rounded-3xl border border-dashed border-surface-border p-8 sm:p-12 text-center max-w-2xl mx-auto my-8">
+        <div class="w-16 h-16 rounded-2xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 mx-auto mb-4">
+          <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        </div>
+        <h2 class="text-lg sm:text-xl font-bold text-ink-primary">
+          {dict.directory.noProvidersTitle}
+        </h2>
+        <p class="text-xs sm:text-sm text-ink-secondary mt-2 leading-relaxed">
+          {dict.directory.noProvidersDesc}
+        </p>
+        <div class="mt-6">
+          <a
+            href={`/${safeLocale}/join`}
+            class="inline-flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors shadow-sm"
+          >
+            {dict.home.joinCtaButton} (₹९९९/वर्ष)
+          </a>
+        </div>
+      </div>
+    )}
+
+    <!-- Other Categories in This Taluka -->
+    <div class="mt-16 pt-8 border-t border-surface-border">
+      <h2 class="text-base sm:text-lg font-bold text-ink-primary mb-4">
+        {dict.directory.otherServicesInTaluka}
+      </h2>
+      <div class="flex flex-wrap gap-2">
+        {allCategories.filter(c => c.id !== category.id).map((c) => (
+          <a
+            href={`/${safeLocale}/${taluka.district!.slug}/${taluka.slug}/${c.slug}`}
+            class="text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl bg-white border border-surface-border hover:border-brand-500 hover:text-brand-700 transition-colors shadow-2xs"
+          >
+            {isMr ? c.name_mr : c.name_en}
+          </a>
+        ))}
+      </div>
+    </div>
+
+  </div>
+</BaseLayout>

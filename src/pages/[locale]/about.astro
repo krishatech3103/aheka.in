@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../lib/i18n';
+
+const { locale } = Astro.params;
+if (!locale || !isValidLocale(locale)) {
+  return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+}
+
+const safeLocale = locale as Locale;
+const dict = getDictionary(safeLocale);
+const isMr = safeLocale === 'mr';
+
+const pageTitle = isMr ? 'आमच्याबद्दल — Aheka (आहे का?)' : 'About Us — Aheka (आहे का?)';
+const pageDesc = isMr
+  ? 'Aheka हे महाराष्ट्रातील लहान शहरे आणि तालुक्यांसाठी स्थानिक सेवा शोध व्यासपीठ आहे.'
+  : 'Aheka is a hyperlocal service provider discovery platform built for Maharashtra talukas.';
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDesc}
+  locale={safeLocale}
+  canonicalPath={`/${safeLocale}/about`}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+    <div class="bg-white rounded-3xl border border-surface-border p-6 sm:p-12 shadow-soft prose prose-brand max-w-none">
+      <span class="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-bold border border-brand-200 mb-4">
+        {isMr ? 'आमचा दृष्टिकोन' : 'Our Mission'}
+      </span>
+      <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight mb-6">
+        Aheka — <span class="text-brand-600">आहे का?</span>
+      </h1>
+
+      <div class="space-y-4 text-ink-secondary text-sm sm:text-base leading-relaxed">
+        <p>
+          {isMr
+            ? 'महाराष्ट्रात कोणत्याही लहान गावात किंवा शहरात जेव्हा नळ गळतो किंवा लाईट जाते, तेव्हा सर्वात आधी विचारला जाणारा प्रश्न म्हणजे: "इलेक्ट्रिशियन आहे का?" किंवा "प्लंबर आहे का?"'
+            : 'In any town or village across Maharashtra, whenever an electrical short or plumbing leak occurs, the very first question asked is: "Electrician ahe ka?" (Is an electrician available?) or "Plumber ahe ka?".'}
+        </p>
+
+        <p>
+          {isMr
+            ? 'Aheka (aheka.in) हा या प्रश्नाचे सहज, पारदर्शक आणि विश्वासू उत्तर देण्याचा प्रयत्न आहे.'
+            : 'Aheka (aheka.in) was created to provide a simple, transparent, and trusted answer to that exact question.'}
+        </p>
+
+        <h2 class="text-xl font-bold text-ink-primary pt-4">
+          {isMr ? 'Aheka चे वेगळेपण काय आहे?' : 'What makes Aheka different?'}
+        </h2>
+
+        <ul class="list-disc pl-5 space-y-2">
+          <li>
+            <strong>{isMr ? 'मध्यस्थ नाही, कमिशन नाही:' : 'Zero Commission, Direct Contact:'}</strong>{' '}
+            {isMr
+              ? 'आम्ही अर्बन कंपनी सारखे मध्यस्थ नाही. ग्राहक थेट कारागिरांना फोन किंवा व्हॉट्सॲपवर संपर्क करतात. कारागिराच्या मेहनतीचा प्रत्येक रुपया त्याच्याच खिशात राहतो.'
+              : 'Unlike managed marketplaces, customers contact service providers directly via phone or WhatsApp. Providers keep 100% of their earnings.'}
+          </li>
+          <li>
+            <strong>{isMr ? 'दररोज फेरबदल (Deterministic Daily Rotation):' : 'Fair Daily Rotation:'}</strong>{' '}
+            {isMr
+              ? 'कोणताही कारागीर जास्त पैसे देऊन वर राहू शकत नाही. सर्व १० कारागिरांना समान दृश्यमानता मिळावी यासाठी दररोज मध्यरात्री संगणकीय नियमानुसार यादी फिरवली जाते.'
+              : 'No provider can pay extra to monopolize the top position. All 10 providers in a taluka rotate daily to guarantee equal, fair visibility.'}
+          </li>
+          <li>
+            <strong>{isMr ? '१० जागांची वाजवी मर्यादा:' : '10-Slot Limit per Service:'}</strong>{' '}
+            {isMr
+              ? 'प्रत्येक तालुक्यात प्रत्येक सेवेसाठी जास्तीत जास्त १० जागा असतात. यामुळे स्पर्धा नियंत्रणात राहते आणि प्रत्येक कारागिराला काम मिळते.'
+              : 'Each taluka has a maximum of 10 slots per service category, ensuring high lead quality and genuine local connection.'}
+          </li>
+        </ul>
+
+        <div class="pt-6 border-t border-surface-border mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p class="text-xs text-ink-muted">
+            {isMr ? 'प्रश्न किंवा सहयोगासाठी संपर्क साधा: support@aheka.in' : 'Questions or partnerships? Email support@aheka.in'}
+          </p>
+          <a
+            href={`/${safeLocale}/join`}
+            class="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl transition-colors"
+          >
+            {dict.nav.join}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

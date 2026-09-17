@@ -1,0 +1,144 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../lib/i18n';
+import { getDataRepository, getLocalizedCategoryName } from '../../lib/repositories/dataRepository';
+
+const { locale } = Astro.params;
+if (!locale || !isValidLocale(locale)) {
+  return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+}
+
+const safeLocale = locale as Locale;
+const dict = getDictionary(safeLocale);
+const isMr = safeLocale === 'mr';
+
+const repo = getDataRepository();
+const categories = await repo.getCategories();
+const districts = await repo.getDistricts();
+const talukas = await repo.getTalukas();
+
+const pageTitle = isMr
+  ? 'Aheka — महाराष्ट्रातील सर्व सेवा प्रकार | स्थानिक सेवा शोध'
+  : 'Aheka — All Local Services in Maharashtra | Hyperlocal Discovery';
+
+const pageDesc = isMr
+  ? 'महाराष्ट्रातील तालुक्यांसाठी उपलब्ध सर्व सेवा प्रकार. इलेक्ट्रिशियन, प्लंबर, सुतार, गवंडी व इतर व्यावसायिक कारागीर शोधा.'
+  : 'Browse all local service categories in Maharashtra. Find electricians, plumbers, carpenters, painters and vetted technicians.';
+
+// Active categories for discovery
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDesc}
+  locale={safeLocale}
+  canonicalPath={`/${safeLocale}/services`}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+    <!-- Header -->
+    <div class="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 text-brand-700 dark:text-brand-300 text-xs font-semibold mb-4">
+        <span>{dict.footer.madeForMaharashtra}</span>
+      </div>
+      <h1 class="text-3xl sm:text-5xl font-black text-ink-primary tracking-tight">
+        {dict.home.viewAllServices}
+      </h1>
+      <p class="mt-3 sm:mt-4 text-sm sm:text-base text-ink-secondary leading-relaxed">
+        {isMr
+          ? 'हवी असलेली सेवा निवडा आणि तुमच्या तालुक्यातील उपलब्ध तंत्रज्ञांशी थेट संपर्क साधा.'
+          : 'Choose a service category to discover vetted local professionals in your taluka.'}
+      </p>
+    </div>
+
+    <!-- Category Grid or Empty State -->
+    {categories.length === 0 ? (
+      <div class="p-12 text-center text-ink-muted bg-white dark:bg-ink-surface rounded-2xl border border-surface-border shadow-soft max-w-lg mx-auto">
+        <p class="text-base font-semibold">
+          {isMr ? 'स्थानिक सेवा जोडण्याचे काम सुरू आहे. लवकरच उपलब्ध होतील.' : 'Services are being added for this location. Please check back soon.'}
+        </p>
+      </div>
+    ) : (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {categories.map((cat) => {
+        const catName = getLocalizedCategoryName(cat, safeLocale);
+        const catDesc = isMr ? cat.description_mr : cat.description_en;
+        return (
+          <div
+            id={cat.slug}
+            class="bg-white dark:bg-ink-surface rounded-2xl border border-surface-border p-6 shadow-soft hover:border-brand-500 transition-all flex flex-col justify-between"
+          >
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900/60 flex items-center justify-center text-brand-600 dark:text-brand-400 mb-4 shadow-2xs">
+                {cat.icon_key === 'zap' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                )}
+                {cat.icon_key === 'droplet' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
+                  </svg>
+                )}
+                {cat.icon_key === 'hammer' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+                  </svg>
+                )}
+                {cat.icon_key === 'paint-bucket' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                )}
+                {cat.icon_key === 'tv' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <rect x="2" y="7" width="20" height="14" rx="2" stroke-width="2" />
+                    <polyline points="17 2 12 7 7 2" stroke-width="2" />
+                  </svg>
+                )}
+                {cat.icon_key === 'home' && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                )}
+                {!['zap', 'droplet', 'hammer', 'paint-bucket', 'tv', 'home'].includes(cat.icon_key) && (
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </div>
+              <h2 class="text-xl font-bold text-ink-primary mb-2">
+                {catName}
+              </h2>
+              <p class="text-xs sm:text-sm text-ink-secondary leading-relaxed mb-4">
+                {catDesc}
+              </p>
+            </div>
+
+            <!-- Locations Quick Links for this Category -->
+            <div class="pt-4 border-t border-surface-border">
+              <span class="text-[11px] font-semibold text-ink-muted block mb-2">
+                {isMr ? 'उपलब्ध तालुके:' : 'Available in Talukas:'}
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                {talukas.slice(0, 4).map((t) => {
+                  const d = districts.find(dist => dist.id === t.district_id);
+                  if (!d) return null;
+                  return (
+                    <a
+                      href={`/${safeLocale}/${d.slug}/${t.slug}/${cat.slug}`}
+                      class="px-2.5 py-1 rounded-md bg-surface-canvas dark:bg-ink-canvas border border-surface-border hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 text-xs font-medium transition-colors notranslate"
+                      translate="no"
+                    >
+                      {isMr ? t.name_mr : t.name_en}
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      </div>
+    )}
+  </div>
+</BaseLayout>

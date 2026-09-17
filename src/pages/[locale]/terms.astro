@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../lib/i18n';
+
+const { locale } = Astro.params;
+if (!locale || !isValidLocale(locale)) {
+  return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+}
+
+const safeLocale = locale as Locale;
+const isMr = safeLocale === 'mr';
+
+const pageTitle = isMr ? 'वापर अटी (Terms of Service) | Aheka' : 'Terms of Service | Aheka';
+const pageDesc = isMr
+  ? 'Aheka प्लॅटफॉर्म वापरण्याचे नियम आणि मार्गदर्शक तत्त्वे.'
+  : 'Terms and conditions for utilizing the Aheka directory service.';
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDesc}
+  locale={safeLocale}
+  canonicalPath={`/${safeLocale}/terms`}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+    <div class="bg-white rounded-3xl border border-surface-border p-6 sm:p-12 shadow-soft space-y-6 text-ink-secondary text-sm sm:text-base leading-relaxed">
+      <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight">
+        {isMr ? 'वापर अटी (Terms of Service)' : 'Terms of Service'}
+      </h1>
+      <p class="text-xs text-ink-muted">
+        {isMr ? 'शेवटचे अद्यतन: ७ सप्टेंबर २०२६' : 'Last updated: September 7, 2026'}
+      </p>
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-bold text-ink-primary">
+          {isMr ? '१. प्लॅटफॉर्मचे स्वरूप' : '1. Nature of Platform'}
+        </h2>
+        <p>
+          {isMr
+            ? 'Aheka ही केवळ स्थानिक सेवा प्रदात्यांची डिरेक्टरी आहे. Aheka स्वतः कोणतीही प्रत्यक्ष सेवा पुरवत नाही किंवा ग्राहकांकडून कामाचे पैसे घेत नाही. ग्राहक आणि सेवा प्रदाता यांच्यातील व्यवहारास Aheka जबाबदार राहणार नाही.'
+            : 'Aheka is purely an informational directory connecting local residents with service providers. Aheka is not an employer, contractor, or guarantor of any services performed.'}
+        </p>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-lg font-bold text-ink-primary">
+          {isMr ? '२. कामाचे दर व व्यवहार' : '2. Rates and Contracts'}
+        </h2>
+        <p>
+          {isMr
+            ? 'कामाचे स्वरूप, दर, साहित्याचा खर्च आणि हमी ग्राहकांनी प्रत्यक्ष कारागिरांशी बोलून ठरवणे आवश्यक आहे.'
+            : 'Pricing, warranty, parts cost, and execution time must be negotiated and agreed upon directly between the customer and the service technician.'}
+        </p>
+      </section>
+    </div>
+  </div>
+</BaseLayout>

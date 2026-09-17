@@ -1,0 +1,88 @@
+---
+import { getDictionary, type Locale } from '../lib/i18n';
+import type { District, Taluka } from '../lib/types/database';
+
+interface Props {
+  locale: Locale;
+  districts: District[];
+  talukas: Taluka[];
+}
+
+const { locale, districts, talukas } = Astro.props;
+const dict = getDictionary(locale);
+const isMr = locale === 'mr';
+---
+
+<dialog
+  id="location-dialog"
+  class="m-auto rounded-2xl p-0 shadow-2xl border border-surface-border bg-white max-w-lg w-[92vw] backdrop:bg-ink-primary/50 backdrop:backdrop-blur-xs open:animate-fade-in"
+>
+  <div class="p-5 sm:p-6">
+    <div class="flex items-center justify-between border-b border-surface-border pb-4">
+      <div>
+        <h3 class="text-lg font-bold text-ink-primary">
+          {dict.nav.changeLocation}
+        </h3>
+        <p class="text-xs text-ink-muted mt-0.5">
+          {isMr ? 'तुमच्या जवळील सेवा शोधण्यासाठी तालुका निवडा' : 'Select your taluka to find providers near you'}
+        </p>
+      </div>
+      <button
+        type="button"
+        onclick="document.getElementById('location-dialog')?.close()"
+        class="p-2 text-ink-muted hover:text-ink-primary rounded-lg hover:bg-surface-muted"
+        aria-label="Close"
+      >
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- District & Taluka Groupings -->
+    <div class="mt-4 space-y-5 max-h-[65vh] overflow-y-auto pr-1">
+      {districts.map((district) => {
+        const districtTalukas = talukas.filter(t => t.district_id === district.id);
+        return (
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-brand-700 mb-2 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+              <span>{isMr ? district.name_mr : district.name_en} {isMr ? 'जिल्हा' : 'District'}</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-2">
+              {districtTalukas.map((taluka) => (
+                <a
+                  href={`/${locale}/${district.slug}/${taluka.slug}`}
+                  class="flex items-center justify-between p-3 rounded-xl border border-surface-border hover:border-brand-500 hover:bg-brand-50/60 text-xs sm:text-sm font-medium text-ink-primary transition-all group"
+                  onclick="document.getElementById('location-dialog')?.close()"
+                >
+                  <span>{isMr ? taluka.name_mr : taluka.name_en}</span>
+                  <svg class="w-4 h-4 text-ink-muted group-hover:text-brand-600 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</dialog>
+
+<script>
+  // Close dialog if backdrop is clicked
+  const dialog = document.getElementById('location-dialog') as HTMLDialogElement | null;
+  dialog?.addEventListener('click', (event) => {
+    const rect = dialog.getBoundingClientRect();
+    const isInDialog = (
+      rect.top <= event.clientY &&
+      event.clientY <= rect.top + rect.height &&
+      rect.left <= event.clientX &&
+      event.clientX <= rect.left + rect.width
+    );
+    if (!isInDialog) {
+      dialog.close();
+    }
+  });
+</script>

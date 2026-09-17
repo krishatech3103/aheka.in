@@ -1,0 +1,34 @@
+---
+interface Props {
+  storageKey?: string;
+}
+
+const { storageKey = 'aheka_theme' } = Astro.props;
+---
+
+<script is:inline define:vars={{ storageKey }}>
+  (function () {
+    try {
+      var key = storageKey || 'aheka_theme';
+      var stored = localStorage.getItem(key);
+      var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+      var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var docEl = document.documentElement;
+
+      if (isDark) {
+        docEl.classList.add('dark');
+        docEl.setAttribute('data-theme', 'dark');
+      } else {
+        docEl.classList.remove('dark');
+        docEl.setAttribute('data-theme', 'light');
+      }
+
+      docEl.style.colorScheme = isDark ? 'dark' : 'light';
+
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        meta.setAttribute('content', isDark ? '#121214' : '#e65100');
+      }
+    } catch (e) {}
+  })();
+</script>

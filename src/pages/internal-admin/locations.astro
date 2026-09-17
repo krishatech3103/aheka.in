@@ -1,0 +1,481 @@
+---
+import '../../styles/global.css';
+import ThemeInitScript from '../../components/ThemeInitScript.astro';
+import ThemeToggle from '../../components/ThemeToggle.astro';
+import LogoIcon from '../../components/LogoIcon.astro';
+import { getDataRepository } from '../../lib/repositories/dataRepository';
+
+const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+
+const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+if (!adminToken) {
+  return Astro.redirect(`/${adminEntryPath}/login`, 302);
+}
+
+const repo = getDataRepository();
+const districts = await repo.getAllDistrictsAdmin();
+const talukas = await repo.getAllTalukasAdmin();
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_admin_theme" />
+    <title>Aheka Admin — Location Management (Districts & Talukas)</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas">
+    
+    <!-- Top Nav -->
+    <header class="bg-surface-elevated border-b border-surface-border sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href={`/${adminEntryPath}`} class="flex items-center gap-2.5 notranslate" translate="no">
+            <LogoIcon size={34} className="w-8 h-8 rounded-xl shadow-xs" />
+            <span class="font-black text-lg">Aheka <span class="text-brand-600 font-bold">Admin</span></span>
+          </a>
+          <nav class="hidden md:flex items-center gap-3 text-sm font-semibold">
+            <a href={`/${adminEntryPath}`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Dashboard</a>
+            <a href={`/${adminEntryPath}/applications`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Applications</a>
+            <a href={`/${adminEntryPath}/vendors`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Vendors</a>
+            <a href={`/${adminEntryPath}/categories`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Categories</a>
+            <a href={`/${adminEntryPath}/locations`} class="text-brand-600 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/40">Locations</a>
+            <a href={`/${adminEntryPath}/payments`} class="text-ink-secondary hover:text-ink-primary px-3 py-1.5 rounded-lg">Payments</a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <ThemeToggle storageKey="aheka_admin_theme" />
+          <a href={`/${adminEntryPath}`} class="text-xs font-semibold text-ink-muted hover:text-ink-primary">← Dashboard</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+      
+      <!-- Section: Districts -->
+      <section class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-elevated p-6 rounded-3xl border border-surface-border shadow-soft">
+          <div>
+            <h1 class="text-2xl font-black text-ink-primary">Districts</h1>
+            <p class="text-xs text-ink-muted mt-1">
+              Configure Maharashtra districts, bilingual names, active visibility, and featured flags.
+            </p>
+          </div>
+          <button id="btn-add-district" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            Add District
+          </button>
+        </div>
+
+        <div class="bg-surface-elevated rounded-3xl border border-surface-border shadow-soft overflow-hidden">
+          {districts.length === 0 ? (
+            <div class="p-10 text-center text-ink-muted font-medium">No districts found in database.</div>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-surface-card border-b border-surface-border text-xs text-ink-secondary font-bold uppercase tracking-wider">
+                  <tr>
+                    <th class="px-6 py-4">Sort</th>
+                    <th class="px-6 py-4">District (EN / MR)</th>
+                    <th class="px-6 py-4">Slug</th>
+                    <th class="px-6 py-4">Status</th>
+                    <th class="px-6 py-4">Featured</th>
+                    <th class="px-6 py-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                  {districts.map((d) => (
+                    <tr class="hover:bg-surface-card/50 transition">
+                      <td class="px-6 py-4 font-mono text-xs text-ink-muted font-bold">{d.sort_order}</td>
+                      <td class="px-6 py-4 font-semibold text-ink-primary">
+                        <div>{d.name_en}</div>
+                        <div class="text-xs text-brand-600 font-normal">{d.name_mr}</div>
+                      </td>
+                      <td class="px-6 py-4 font-mono text-xs text-ink-secondary">{d.slug}</td>
+                      <td class="px-6 py-4">
+                        <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          d.is_active
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+                        }`}>
+                          {d.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4">
+                        <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          d.is_featured
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                        }`}>
+                          {d.is_featured ? '★ Featured' : 'Standard'}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 text-right">
+                        <button
+                          class="btn-edit-dist px-3 py-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg border border-brand-200 dark:border-brand-800 transition cursor-pointer"
+                          data-dist={JSON.stringify(d)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- Section: Talukas -->
+      <section class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-elevated p-6 rounded-3xl border border-surface-border shadow-soft">
+          <div>
+            <h2 class="text-2xl font-black text-ink-primary">Talukas / Tehsils</h2>
+            <p class="text-xs text-ink-muted mt-1">
+              Configure hyperlocal talukas, district association, and featured key talukas for homepage/footer.
+            </p>
+          </div>
+          <button id="btn-add-taluka" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Taluka
+          </button>
+        </div>
+
+        <div class="bg-surface-elevated rounded-3xl border border-surface-border shadow-soft overflow-hidden">
+          {talukas.length === 0 ? (
+            <div class="p-10 text-center text-ink-muted font-medium">No talukas found in database.</div>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-surface-card border-b border-surface-border text-xs text-ink-secondary font-bold uppercase tracking-wider">
+                  <tr>
+                    <th class="px-6 py-4">Sort</th>
+                    <th class="px-6 py-4">Taluka (EN / MR)</th>
+                    <th class="px-6 py-4">District</th>
+                    <th class="px-6 py-4">Slug</th>
+                    <th class="px-6 py-4">Status</th>
+                    <th class="px-6 py-4">Featured</th>
+                    <th class="px-6 py-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                  {talukas.map((t) => (
+                    <tr class="hover:bg-surface-card/50 transition">
+                      <td class="px-6 py-4 font-mono text-xs text-ink-muted font-bold">{t.sort_order}</td>
+                      <td class="px-6 py-4 font-semibold text-ink-primary">
+                        <div>{t.name_en}</div>
+                        <div class="text-xs text-brand-600 font-normal">{t.name_mr}</div>
+                      </td>
+                      <td class="px-6 py-4 text-xs font-medium text-ink-secondary">
+                        {t.district?.name_en || districts.find(d => d.id === t.district_id)?.name_en || '—'}
+                      </td>
+                      <td class="px-6 py-4 font-mono text-xs text-ink-secondary">{t.slug}</td>
+                      <td class="px-6 py-4">
+                        <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          t.is_active
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+                        }`}>
+                          {t.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4">
+                        <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          t.is_featured
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                        }`}>
+                          {t.is_featured ? '★ Key Taluka' : 'Standard'}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 text-right">
+                        <button
+                          class="btn-edit-taluka px-3 py-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg border border-brand-200 dark:border-brand-800 transition cursor-pointer"
+                          data-taluka={JSON.stringify(t)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Modal for District Create / Edit -->
+    <div id="dist-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+      <div class="bg-surface-elevated w-full max-w-md rounded-3xl border border-surface-border shadow-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-surface-border pb-3">
+          <h2 id="dist-modal-title" class="text-lg font-bold text-ink-primary">Add District</h2>
+          <button id="btn-close-dist-modal" class="text-ink-muted hover:text-ink-primary text-xl font-bold cursor-pointer">&times;</button>
+        </div>
+        <form id="dist-form" class="space-y-3">
+          <input type="hidden" id="dist-id" value="" />
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">English Name</label>
+            <input id="dist-name-en" type="text" required placeholder="e.g. Ahilyanagar" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Marathi Name</label>
+            <input id="dist-name-mr" type="text" required placeholder="e.g. अहिल्यानगर" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Slug</label>
+            <input id="dist-slug" type="text" required placeholder="e.g. ahilyanagar" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">Sort Order</label>
+              <input id="dist-sort" type="number" value="1" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="dist-active" type="checkbox" checked class="w-4 h-4 rounded text-brand-600" />
+              <label for="dist-active" class="text-xs font-semibold text-ink-primary">Active</label>
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="dist-featured" type="checkbox" class="w-4 h-4 rounded text-brand-600" />
+              <label for="dist-featured" class="text-xs font-semibold text-ink-primary">Featured</label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-3 border-t border-surface-border">
+            <button type="button" id="btn-cancel-dist" class="px-4 py-2 rounded-xl border border-surface-border text-xs font-semibold hover:bg-surface-card cursor-pointer">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition cursor-pointer">Save District</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal for Taluka Create / Edit -->
+    <div id="taluka-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+      <div class="bg-surface-elevated w-full max-w-md rounded-3xl border border-surface-border shadow-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-surface-border pb-3">
+          <h2 id="taluka-modal-title" class="text-lg font-bold text-ink-primary">Add Taluka</h2>
+          <button id="btn-close-taluka-modal" class="text-ink-muted hover:text-ink-primary text-xl font-bold cursor-pointer">&times;</button>
+        </div>
+        <form id="taluka-form" class="space-y-3">
+          <input type="hidden" id="taluka-id" value="" />
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Parent District</label>
+            <select id="taluka-dist-id" required class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary">
+              {districts.map((d) => (
+                <option value={d.id}>{d.name_en} ({d.name_mr})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">English Name</label>
+            <input id="taluka-name-en" type="text" required placeholder="e.g. Sangamner" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Marathi Name</label>
+            <input id="taluka-name-mr" type="text" required placeholder="e.g. संगमनेर" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-ink-secondary mb-1">Slug</label>
+            <input id="taluka-slug" type="text" required placeholder="e.g. sangamner" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-secondary mb-1">Sort Order</label>
+              <input id="taluka-sort" type="number" value="1" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="taluka-active" type="checkbox" checked class="w-4 h-4 rounded text-brand-600" />
+              <label for="taluka-active" class="text-xs font-semibold text-ink-primary">Active</label>
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <input id="taluka-featured" type="checkbox" class="w-4 h-4 rounded text-brand-600" />
+              <label for="taluka-featured" class="text-xs font-semibold text-ink-primary">Featured</label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-3 border-t border-surface-border">
+            <button type="button" id="btn-cancel-taluka" class="px-4 py-2 rounded-xl border border-surface-border text-xs font-semibold hover:bg-surface-card cursor-pointer">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition cursor-pointer">Save Taluka</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // District Modal Logic
+      const distModal = document.getElementById('dist-modal');
+      const distForm = document.getElementById('dist-form') as HTMLFormElement;
+      const distModalTitle = document.getElementById('dist-modal-title');
+      const distId = document.getElementById('dist-id') as HTMLInputElement;
+      const distNameEn = document.getElementById('dist-name-en') as HTMLInputElement;
+      const distNameMr = document.getElementById('dist-name-mr') as HTMLInputElement;
+      const distSlug = document.getElementById('dist-slug') as HTMLInputElement;
+      const distSort = document.getElementById('dist-sort') as HTMLInputElement;
+      const distActive = document.getElementById('dist-active') as HTMLInputElement;
+      const distFeatured = document.getElementById('dist-featured') as HTMLInputElement;
+
+      document.getElementById('btn-add-district')?.addEventListener('click', () => {
+        distId.value = '';
+        distForm.reset();
+        distActive.checked = true;
+        distFeatured.checked = false;
+        if (distModalTitle) distModalTitle.textContent = 'Add New District';
+        distModal?.classList.remove('hidden');
+        distModal?.classList.add('flex');
+      });
+
+      document.querySelectorAll('.btn-edit-dist').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const raw = btn.getAttribute('data-dist');
+          if (!raw) return;
+          const d = JSON.parse(raw);
+          distId.value = d.id;
+          distNameEn.value = d.name_en || '';
+          distNameMr.value = d.name_mr || '';
+          distSlug.value = d.slug || '';
+          distSort.value = d.sort_order ?? 0;
+          distActive.checked = Boolean(d.is_active);
+          distFeatured.checked = Boolean(d.is_featured);
+          if (distModalTitle) distModalTitle.textContent = 'Edit District: ' + d.name_en;
+          distModal?.classList.remove('hidden');
+          distModal?.classList.add('flex');
+        });
+      });
+
+      const closeDistModal = () => {
+        distModal?.classList.add('hidden');
+        distModal?.classList.remove('flex');
+      };
+      document.getElementById('btn-close-dist-modal')?.addEventListener('click', closeDistModal);
+      document.getElementById('btn-cancel-dist')?.addEventListener('click', closeDistModal);
+
+      distForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = distId.value;
+        const action = id ? 'update' : 'create';
+        const payload = {
+          type: 'district',
+          action,
+          id: id || undefined,
+          data: {
+            name_en: distNameEn.value.trim(),
+            name_mr: distNameMr.value.trim(),
+            slug: distSlug.value.trim(),
+            sort_order: Number(distSort.value) || 0,
+            is_active: distActive.checked,
+            is_featured: distFeatured.checked,
+          },
+        };
+
+        try {
+          const res = await fetch('/api/internal-admin/manage-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const result = await res.json();
+          if (result.success) {
+            window.location.reload();
+          } else {
+            alert('Error: ' + (result.error || 'Failed to save district'));
+          }
+        } catch (err: any) {
+          alert('Network Error: ' + err.message);
+        }
+      });
+
+      // Taluka Modal Logic
+      const talukaModal = document.getElementById('taluka-modal');
+      const talukaForm = document.getElementById('taluka-form') as HTMLFormElement;
+      const talukaModalTitle = document.getElementById('taluka-modal-title');
+      const talukaId = document.getElementById('taluka-id') as HTMLInputElement;
+      const talukaDistId = document.getElementById('taluka-dist-id') as HTMLSelectElement;
+      const talukaNameEn = document.getElementById('taluka-name-en') as HTMLInputElement;
+      const talukaNameMr = document.getElementById('taluka-name-mr') as HTMLInputElement;
+      const talukaSlug = document.getElementById('taluka-slug') as HTMLInputElement;
+      const talukaSort = document.getElementById('taluka-sort') as HTMLInputElement;
+      const talukaActive = document.getElementById('taluka-active') as HTMLInputElement;
+      const talukaFeatured = document.getElementById('taluka-featured') as HTMLInputElement;
+
+      document.getElementById('btn-add-taluka')?.addEventListener('click', () => {
+        talukaId.value = '';
+        talukaForm.reset();
+        talukaActive.checked = true;
+        talukaFeatured.checked = false;
+        if (talukaModalTitle) talukaModalTitle.textContent = 'Add New Taluka';
+        talukaModal?.classList.remove('hidden');
+        talukaModal?.classList.add('flex');
+      });
+
+      document.querySelectorAll('.btn-edit-taluka').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const raw = btn.getAttribute('data-taluka');
+          if (!raw) return;
+          const t = JSON.parse(raw);
+          talukaId.value = t.id;
+          if (talukaDistId) talukaDistId.value = t.district_id || '';
+          talukaNameEn.value = t.name_en || '';
+          talukaNameMr.value = t.name_mr || '';
+          talukaSlug.value = t.slug || '';
+          talukaSort.value = t.sort_order ?? 0;
+          talukaActive.checked = Boolean(t.is_active);
+          talukaFeatured.checked = Boolean(t.is_featured);
+          if (talukaModalTitle) talukaModalTitle.textContent = 'Edit Taluka: ' + t.name_en;
+          talukaModal?.classList.remove('hidden');
+          talukaModal?.classList.add('flex');
+        });
+      });
+
+      const closeTalukaModal = () => {
+        talukaModal?.classList.add('hidden');
+        talukaModal?.classList.remove('flex');
+      };
+      document.getElementById('btn-close-taluka-modal')?.addEventListener('click', closeTalukaModal);
+      document.getElementById('btn-cancel-taluka')?.addEventListener('click', closeTalukaModal);
+
+      talukaForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = talukaId.value;
+        const action = id ? 'update' : 'create';
+        const payload = {
+          type: 'taluka',
+          action,
+          id: id || undefined,
+          data: {
+            district_id: talukaDistId.value,
+            name_en: talukaNameEn.value.trim(),
+            name_mr: talukaNameMr.value.trim(),
+            slug: talukaSlug.value.trim(),
+            sort_order: Number(talukaSort.value) || 0,
+            is_active: talukaActive.checked,
+            is_featured: talukaFeatured.checked,
+          },
+        };
+
+        try {
+          const res = await fetch('/api/internal-admin/manage-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const result = await res.json();
+          if (result.success) {
+            window.location.reload();
+          } else {
+            alert('Error: ' + (result.error || 'Failed to save taluka'));
+          }
+        } catch (err: any) {
+          alert('Network Error: ' + err.message);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+# Build outputs
+dist/
+.astro/
+.output/
+.wrangler/
+.config/.wrangler/
+
+# Dependencies
+node_modules/
+.tools/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+!.dev.vars.example
+
+# OS & Editor
+.DS_Store
+*.log
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Playwright & test artifacts
+test-results/
+playwright-report/
+blob-report/

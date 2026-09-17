@@ -1,0 +1,171 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import LocationModal from '../components/LocationModal.astro';
+import ThemeInitScript from '../components/ThemeInitScript.astro';
+import { getDictionary, type Locale, DEFAULT_LOCALE } from '../lib/i18n';
+import { getDataRepository } from '../lib/repositories/dataRepository';
+
+interface Props {
+  title: string;
+  description: string;
+  locale?: Locale;
+  canonicalPath?: string;
+  robots?: string;
+  currentTalukaName?: string;
+  currentDistrictSlug?: string;
+  currentTalukaSlug?: string;
+  schemaJsonLd?: Record<string, any> | Record<string, any>[];
+}
+
+const {
+  title,
+  description,
+  locale = DEFAULT_LOCALE,
+  canonicalPath = Astro.url.pathname,
+  robots = 'index, follow',
+  currentTalukaName,
+  currentDistrictSlug,
+  currentTalukaSlug,
+  schemaJsonLd,
+} = Astro.props;
+
+const dict = getDictionary(locale);
+const isMr = locale === 'mr';
+
+// Repo for header/footer location & category lists
+const repo = getDataRepository();
+const districts = await repo.getDistricts();
+const talukas = await repo.getTalukas();
+const categories = await repo.getCategories();
+
+// Canonical and Hreflang URLs
+const siteUrl = 'https://aheka.in';
+const cleanPath = canonicalPath.replace(/\/$/, '') || '';
+const canonicalUrl = `${siteUrl}${cleanPath}`;
+
+const mrPath = cleanPath.startsWith('/en')
+  ? cleanPath.replace('/en', '/mr')
+  : cleanPath.startsWith('/mr')
+  ? cleanPath
+  : `/mr${cleanPath}`;
+
+const enPath = cleanPath.startsWith('/mr')
+  ? cleanPath.replace('/mr', '/en')
+  : cleanPath.startsWith('/en')
+  ? cleanPath
+  : `/en${cleanPath}`;
+
+const mrUrl = `${siteUrl}${mrPath}`;
+const enUrl = `${siteUrl}${enPath}`;
+
+// Default Organization JSON-LD
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Aheka',
+  alternateName: 'आहे का?',
+  url: siteUrl,
+  logo: `${siteUrl}/icons/icon-512.png`,
+  description: 'Hyperlocal service-provider discovery platform for Maharashtra.',
+  sameAs: [
+    'https://www.facebook.com/aheka.in',
+    'https://twitter.com/aheka_in',
+    'https://instagram.com/aheka.in',
+  ],
+};
+---
+
+<!DOCTYPE html>
+<html lang={locale} class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e65100" />
+    <ThemeInitScript storageKey="aheka_theme" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- Google Fonts Preconnect & Optimization -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- SEO Meta Tags -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Hreflang Alternates -->
+    <link rel="alternate" hreflang="mr" href={mrUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={mrUrl} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:site_name" content="Aheka (आहे का?)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:locale" content={isMr ? 'mr_IN' : 'en_US'} />
+    <meta property="og:image" content={`${siteUrl}/icons/icon-512.png`} />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:url" content={canonicalUrl} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${siteUrl}/icons/icon-512.png`} />
+
+    <!-- Schema.org Organization Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify(organizationSchema)} />
+
+    <!-- Custom Page Schema.org Structured Data -->
+    {schemaJsonLd && (
+      Array.isArray(schemaJsonLd) ? (
+        schemaJsonLd.map(schema => (
+          <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+        ))
+      ) : (
+        <script type="application/ld+json" set:html={JSON.stringify(schemaJsonLd)} />
+      )
+    )}
+  </head>
+  <body class="min-h-full flex flex-col bg-surface-canvas text-ink-primary selection:bg-brand-100 selection:text-brand-900">
+    <Header
+      locale={locale}
+      currentPath={canonicalPath}
+      currentTalukaName={currentTalukaName}
+    />
+
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <Footer
+      locale={locale}
+      districts={districts}
+      talukas={talukas}
+      categories={categories}
+      currentDistrictSlug={currentDistrictSlug}
+      currentTalukaSlug={currentTalukaSlug}
+    />
+
+    <LocationModal
+      locale={locale}
+      districts={districts}
+      talukas={talukas}
+    />
+
+    <!-- Service Worker Registration for PWA -->
+    <script is:inline>
+      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

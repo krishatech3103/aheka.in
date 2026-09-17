@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — Aheka (आहे का?)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fafaf7;
+      --card: #ffffff;
+      --border: #e6e6dc;
+      --text: #18181b;
+      --text-muted: #52525b;
+      --brand: #e65100;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121214;
+        --card: #18181b;
+        --border: #323238;
+        --text: #f4f4f5;
+        --text-muted: #a1a1aa;
+        --brand: #f57c00;
+      }
+    }
+    html.dark {
+      --bg: #121214;
+      --card: #18181b;
+      --border: #323238;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --brand: #f57c00;
+    }
+    html.light {
+      --bg: #fafaf7;
+      --card: #ffffff;
+      --border: #e6e6dc;
+      --text: #18181b;
+      --text-muted: #52525b;
+      --brand: #e65100;
+    }
+    body {
+      font-family: 'Noto Sans Devanagari', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .brand {
+      color: var(--brand);
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 2rem;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    h1 {
+      font-size: 1.25rem;
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 1.5rem;
+      background-color: var(--brand);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+  </style>
+  <script>
+    try {
+      var pref = localStorage.getItem('aheka_theme');
+      if (pref === 'dark') document.documentElement.className = 'dark';
+      else if (pref === 'light') document.documentElement.className = 'light';
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div class="brand notranslate" translate="no" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+      <img src="/icons/icon-192.png" width="36" height="36" style="border-radius: 8px;" alt="Aheka" />
+      <span>Aheka • आहे का?</span>
+    </div>
+    <h1>इंटरनेट कनेक्शन उपलब्ध नाही</h1>
+    <p>कृपया तुमचे इंटरनेट कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.</p>
+    <p style="font-size: 0.85rem; color: #71717a; margin-top: 0.5rem;">
+      You seem to be offline. Please check your network connection and reload.
+    </p>
+    <button class="btn" onclick="window.location.reload()">पुन्हा प्रयत्न करा (Retry)</button>
+  </div>
+</body>
+</html>
