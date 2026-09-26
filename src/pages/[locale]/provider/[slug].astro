@@ -1,8 +1,9 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import ShareButton from '../../../components/ShareButton';
-import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../lib/i18n';
+import { getDictionary, getLocalizedText, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../lib/i18n';
 import { getDataRepository } from '../../../lib/repositories/dataRepository';
+import { getSiteUrl } from '../../../lib/runtime/config';
 
 const { locale, slug } = Astro.params;
 if (!locale || !isValidLocale(locale)) {
@@ -12,6 +13,7 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
+const siteUrl = getSiteUrl(Astro.url.origin);
 
 const repo = getDataRepository();
 const profile = await repo.getProviderBySlug(slug || '');
@@ -38,18 +40,27 @@ if (!districtSlug && primaryListing?.taluka.district_id) {
 const talukaName = primaryListing ? (isMr ? primaryListing.taluka.name_mr : primaryListing.taluka.name_en) : '';
 const districtName = primaryListing && primaryListing.taluka.district ? (isMr ? primaryListing.taluka.district.name_mr : primaryListing.taluka.district.name_en) : '';
 const primaryCategoryName = primaryListing ? (isMr ? primaryListing.category.name_mr : primaryListing.category.name_en) : '';
+const localizedDescription = getLocalizedText(safeLocale, vendor.description_en, vendor.description_mr);
+const localizedServiceAreas = serviceAreas
+  .map((area) => getLocalizedText(safeLocale, area.name_en, area.name_mr))
+  .filter(Boolean);
 
-const pageTitle = `${vendor.provider_name} ${vendor.business_name ? `(${vendor.business_name})` : ''} — ${primaryCategoryName} in ${talukaName} | Aheka`;
+const pageTitle = isMr
+  ? `${vendor.provider_name} ${vendor.business_name ? `(${vendor.business_name})` : ''} — ${talukaName} मधील ${primaryCategoryName} | आहे का?`
+  : `${vendor.provider_name} ${vendor.business_name ? `(${vendor.business_name})` : ''} — ${primaryCategoryName} in ${talukaName} | Aheka`;
 const pageDesc = isMr
   ? `${vendor.provider_name}, ${talukaName} मधील विश्वासू ${primaryCategoryName}. थेट कॉल करा: ${vendor.mobile} किंवा व्हॉट्सॲपवर संपर्क साधा.`
   : `Contact ${vendor.provider_name} (${vendor.business_name || primaryCategoryName}) in ${talukaName}, Maharashtra. Direct mobile: ${vendor.mobile}.`;
+const shareText = isMr
+  ? `${dict.actions.sharePrompt} ${vendor.provider_name} (${primaryCategoryName}), ${talukaName} येथे.`
+  : `${dict.actions.sharePrompt} ${vendor.provider_name} (${primaryCategoryName}) in ${talukaName}.`;
 
-const currentUrl = `https://aheka.in/${safeLocale}/provider/${vendor.slug}`;
+const currentUrl = `${siteUrl}/${safeLocale}/provider/${vendor.slug}`;
 
 // WhatsApp link with friendly prefilled message
 const waText = encodeURIComponent(
   isMr
-    ? `नमस्कार ${vendor.provider_name}, मी Aheka (aheka.in) वर तुमची प्रोफाईल पाहिली. मला सेवेबद्दल चौकशी करायची आहे.`
+    ? `नमस्कार ${vendor.provider_name}, मी तुमची प्रोफाइल पाहिली. मला सेवेबद्दल चौकशी करायची आहे.`
     : `Hello ${vendor.provider_name}, I found your profile on Aheka (aheka.in) and would like to inquire about your service.`
 );
 const waNumberClean = vendor.whatsapp_number
@@ -72,11 +83,11 @@ const localBusinessSchema = {
   legalName: vendor.business_name || vendor.provider_name,
   telephone: vendor.mobile,
   url: currentUrl,
-  image: vendor.profile_image_url || 'https://aheka.in/icons/icon-512.png',
+  image: vendor.profile_image_url || `${siteUrl}/icons/icon-512.png`,
   address: {
     '@type': 'PostalAddress',
     streetAddress: vendor.full_address,
-    addressLocality: primaryListing?.taluka.name_en,
+    addressLocality: talukaName,
     addressRegion: 'Maharashtra',
     addressCountry: 'IN',
   },
@@ -87,7 +98,7 @@ const localBusinessSchema = {
       longitude: vendor.longitude,
     }
   } : {}),
-  description: vendor.description_mr || vendor.description_en || pageDesc,
+  description: localizedDescription || pageDesc,
 };
 
 const breadcrumbSchema = {
@@ -98,20 +109,20 @@ const breadcrumbSchema = {
       '@type': 'ListItem',
       position: 1,
       name: dict.directory.breadcrumbsHome,
-      item: `https://aheka.in/${safeLocale}`,
+      item: `${siteUrl}/${safeLocale}`,
     },
     ...(primaryListing && districtSlug ? [
       {
         '@type': 'ListItem',
         position: 2,
         name: talukaName,
-        item: `https://aheka.in/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}`,
+        item: `${siteUrl}/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}`,
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: primaryCategoryName,
-        item: `https://aheka.in/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}/${primaryListing.category.slug}`,
+        item: `${siteUrl}/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}/${primaryListing.category.slug}`,
       },
     ] : []),
     {
@@ -199,7 +210,7 @@ const breadcrumbSchema = {
             </h1>
             {vendor.is_verified && (
               <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                <span>✓ {isMr ? 'Aheka पडताळणी' : 'Verified by Aheka'}</span>
+                <span>✓ {isMr ? 'पडताळलेली प्रोफाइल' : 'Verified by Aheka'}</span>
               </span>
             )}
           </div>
@@ -286,7 +297,7 @@ const breadcrumbSchema = {
         <ShareButton
           client:idle
           title={`${vendor.provider_name} - ${vendor.business_name || primaryCategoryName}`}
-          text={`${dict.actions.sharePrompt} ${vendor.provider_name} (${primaryCategoryName}) in ${talukaName}.`}
+          text={shareText}
           url={currentUrl}
           locale={safeLocale}
           className="px-4 py-3.5 rounded-2xl text-sm"
@@ -297,13 +308,13 @@ const breadcrumbSchema = {
       <div class="pt-8 space-y-8">
         
         <!-- About / Description -->
-        {(vendor.description_mr || vendor.description_en) && (
+        {localizedDescription && (
           <div>
             <h2 class="text-sm font-bold uppercase tracking-wider text-brand-700 mb-2">
               {isMr ? 'व्यवसायाबद्दल माहिती' : 'About Business'}
             </h2>
             <p class="text-sm sm:text-base text-ink-secondary leading-relaxed whitespace-pre-line">
-              {isMr ? (vendor.description_mr || vendor.description_en) : (vendor.description_en || vendor.description_mr)}
+              {localizedDescription}
             </p>
           </div>
         )}
@@ -323,13 +334,13 @@ const breadcrumbSchema = {
         </div>
 
         <!-- Service Areas Covered -->
-        {serviceAreas.length > 0 && (
+        {localizedServiceAreas.length > 0 && (
           <div>
             <h2 class="text-sm font-bold uppercase tracking-wider text-brand-700 mb-2">
               {dict.directory.serviceAreas} ({talukaName})
             </h2>
             <div class="flex flex-wrap gap-2">
-              {serviceAreas.map((area) => (
+              {localizedServiceAreas.map((area) => (
                 <span class="px-3 py-1 rounded-lg bg-surface-muted border border-surface-border text-xs sm:text-sm text-ink-secondary font-medium">
                   {area}
                 </span>
@@ -353,7 +364,7 @@ const breadcrumbSchema = {
                   {isMr ? l.category.name_mr : l.category.name_en}
                 </span>
                 <span class="text-xs text-brand-700 font-semibold group-hover:underline">
-                  {l.taluka.name_en} →
+                  {isMr ? l.taluka.name_mr : l.taluka.name_en} →
                 </span>
               </a>
             ))}
@@ -372,7 +383,7 @@ const breadcrumbSchema = {
       <div>
         <span class="font-bold">{isMr ? 'थेट संपर्क सूचना:' : 'Direct Contact Notice:'}</span>{' '}
         {isMr
-          ? 'Aheka वर ग्राहक आणि सेवा प्रदात्यांमध्ये कोणताही मध्यस्थ नाही. कामाचे दर, वेळ आणि अटी थेट सेवा प्रदात्याशी ठरवा.'
+          ? 'या प्लॅटफॉर्मवर ग्राहक आणि सेवा प्रदात्यांमध्ये कोणताही मध्यस्थ नाही. कामाचे दर, वेळ आणि अटी थेट सेवा प्रदात्याशी ठरवा.'
           : 'Aheka connects you directly with local service providers with zero commission. Discuss work terms, rates, and timing directly with the technician.'}
       </div>
     </div>
@@ -389,6 +400,7 @@ const breadcrumbSchema = {
       body: JSON.stringify({
         event_type: 'profile_view',
         page_path: window.location.pathname,
+        locale: window.location.pathname.split('/')[1] === 'mr' ? 'mr' : 'en',
       }),
     }).catch(() => {});
   } catch {}
@@ -406,6 +418,7 @@ const breadcrumbSchema = {
             vendor_id: vendorId,
             event_type: action,
             page_path: window.location.pathname,
+            locale: window.location.pathname.split('/')[1] === 'mr' ? 'mr' : 'en',
           }),
         }).catch(() => {});
       }

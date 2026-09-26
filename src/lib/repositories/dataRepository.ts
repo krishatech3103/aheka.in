@@ -14,6 +14,8 @@ import type {
   ListingTrial,
   PerformanceMetrics,
   VendorReportSnapshot,
+  VendorServiceArea,
+  SiteSettings,
 } from '../types/database';
 import { rotateProvidersDaily } from '../business/rotation';
 import {
@@ -29,6 +31,7 @@ import {
 } from '../business/slotEnforcement';
 import { getPublicSupabaseClient, getAdminSupabaseClient } from '../supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isProductionRuntime, type RuntimeEnv } from '../runtime/config';
 
 export interface AdminTrialMetrics {
   activeTrials: number;
@@ -71,9 +74,15 @@ export interface ListingReportResult {
   }[];
 }
 
+export interface IndexableDirectoryRoute {
+  district_slug: string;
+  taluka_slug: string;
+  category_slug: string;
+}
+
 export function getLocalizedCategoryName(
   category: { name_en: string; name_mr: string },
-  locale: string = 'mr'
+  locale: string = 'en'
 ): string {
   if (locale === 'mr') {
     return category.name_mr.replace(/\s*\([A-Za-z\s/]+\)/g, '').replace(/\/.*$/, '').trim();
@@ -101,10 +110,12 @@ export interface DataRepository {
       subscription?: Subscription;
       current_trial?: ListingTrial;
     })[];
-    serviceAreas: string[];
+    serviceAreas: VendorServiceArea[];
     isEligible: boolean;
   } | null>;
+  getSiteSettings(): Promise<SiteSettings>;
   getDirectoryPageSettings(talukaId: string, categoryId: string): Promise<DirectoryPageSettings | null>;
+  getIndexableDirectoryRoutes(): Promise<IndexableDirectoryRoute[]>;
   submitVendorApplication(data: {
     provider_name: string;
     business_name?: string;
@@ -235,7 +246,7 @@ export interface DataRepository {
   addDistrict(district: Omit<District, 'id' | 'created_at' | 'updated_at'>): Promise<District>;
   updateDistrict(id: string, updates: Partial<Pick<District, 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order'>>): Promise<{ success: boolean; error?: string }>;
   addTaluka(taluka: Omit<Taluka, 'id' | 'created_at' | 'updated_at' | 'district'>): Promise<Taluka>;
-  updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order'>>): Promise<{ success: boolean; error?: string }>;
+  updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order' | 'center_latitude' | 'center_longitude' | 'location_detection_radius_km'>>): Promise<{ success: boolean; error?: string }>;
   addCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<Category>;
   updateCategory(id: string, updates: Partial<Pick<Category, 'name_en' | 'name_mr' | 'slug' | 'description_en' | 'description_mr' | 'icon_key' | 'is_visible' | 'is_featured' | 'aliases' | 'sort_order'>>): Promise<{ success: boolean; error?: string }>;
 }
@@ -249,10 +260,10 @@ class MockDataRepository implements DataRepository {
   ];
 
   private talukas: Taluka[] = [
-    { id: 't1111111-1111-1111-1111-111111111111', district_id: 'd1111111-1111-1111-1111-111111111111', name_en: 'Sangamner', name_mr: 'संगमनेर', slug: 'sangamner', is_active: true, is_featured: true, sort_order: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-    { id: 't2222222-2222-2222-2222-222222222222', district_id: 'd1111111-1111-1111-1111-111111111111', name_en: 'Akole', name_mr: 'अकोले', slug: 'akole', is_active: true, is_featured: true, sort_order: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-    { id: 't3333333-3333-3333-3333-333333333333', district_id: 'd2222222-2222-2222-2222-222222222222', name_en: 'Haveli', name_mr: 'हवेली', slug: 'haveli', is_active: true, is_featured: false, sort_order: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-    { id: 't4444444-4444-4444-4444-444444444444', district_id: 'd2222222-2222-2222-2222-222222222222', name_en: 'Baramati', name_mr: 'बारामती', slug: 'baramati', is_active: true, is_featured: false, sort_order: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 't1111111-1111-1111-1111-111111111111', district_id: 'd1111111-1111-1111-1111-111111111111', name_en: 'Sangamner', name_mr: 'संगमनेर', slug: 'sangamner', is_active: true, is_featured: true, sort_order: 1, center_latitude: 19.56784, center_longitude: 74.21154, location_detection_radius_km: 25, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 't2222222-2222-2222-2222-222222222222', district_id: 'd1111111-1111-1111-1111-111111111111', name_en: 'Akole', name_mr: 'अकोले', slug: 'akole', is_active: true, is_featured: true, sort_order: 2, center_latitude: 19.54063, center_longitude: 74.00543, location_detection_radius_km: 25, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 't3333333-3333-3333-3333-333333333333', district_id: 'd2222222-2222-2222-2222-222222222222', name_en: 'Haveli', name_mr: 'हवेली', slug: 'haveli', is_active: true, is_featured: false, sort_order: 1, center_latitude: 18.52043, center_longitude: 73.85674, location_detection_radius_km: 25, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 't4444444-4444-4444-4444-444444444444', district_id: 'd2222222-2222-2222-2222-222222222222', name_en: 'Baramati', name_mr: 'बारामती', slug: 'baramati', is_active: true, is_featured: false, sort_order: 2, center_latitude: 18.14434, center_longitude: 74.57626, location_detection_radius_km: 25, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
   ];
 
   private categories: Category[] = [
@@ -374,6 +385,15 @@ class MockDataRepository implements DataRepository {
   private applications: VendorApplication[] = [];
   private analyticsEvents: any[] = [];
   private reportSnapshots: VendorReportSnapshot[] = [];
+  private siteSettings: SiteSettings = {
+    id: 1,
+    annual_listing_price: 999,
+    max_active_providers_per_taluka_category: 10,
+    seo_min_active_providers: 3,
+    support_mobile: '+919876543210',
+    support_whatsapp: '+919876543210',
+    business_email: 'contact@aheka.in',
+  };
 
   constructor() {
     this.seedDevData();
@@ -757,8 +777,8 @@ class MockDataRepository implements DataRepository {
             vendor_id: cfg.vId,
             vendor_listing_id: cfg.lId,
             event_type: type,
-            page_path: `/mr/provider/${cfg.vId}`,
-            locale: 'mr',
+            page_path: `/en/provider/${cfg.vId}`,
+            locale: 'en',
             occurred_at: new Date(nowMs - offsetMs).toISOString(),
           });
         }
@@ -914,7 +934,7 @@ class MockDataRepository implements DataRepository {
       subscription?: Subscription;
       current_trial?: ListingTrial;
     })[];
-    serviceAreas: string[];
+    serviceAreas: VendorServiceArea[];
     isEligible: boolean;
   } | null> {
     const vendor = this.vendors.find(v => v.slug === slug);
@@ -958,13 +978,42 @@ class MockDataRepository implements DataRepository {
     return {
       vendor,
       listings,
-      serviceAreas: ['संगमनेर शहर', 'घुलेवाडी', 'धांदरफळ', 'अकोले बायपास'],
+      serviceAreas: [
+        { name_en: 'Sangamner City', name_mr: 'संगमनेर शहर' },
+        { name_en: 'Ghulewadi', name_mr: 'घुलेवाडी' },
+        { name_en: 'Dhandarphal', name_mr: 'धांदरफळ' },
+        { name_en: 'Akole Bypass', name_mr: 'अकोले बायपास' },
+      ],
       isEligible,
     };
   }
 
   async getDirectoryPageSettings(talukaId: string, categoryId: string): Promise<DirectoryPageSettings | null> {
     return null;
+  }
+
+  async getSiteSettings(): Promise<SiteSettings> {
+    return { ...this.siteSettings };
+  }
+
+  async getIndexableDirectoryRoutes(): Promise<IndexableDirectoryRoute[]> {
+    const routes: IndexableDirectoryRoute[] = [];
+    const minimumProviders = 3;
+    for (const taluka of this.talukas.filter(item => item.is_active)) {
+      const district = this.districts.find(item => item.id === taluka.district_id && item.is_active);
+      if (!district) continue;
+      for (const category of this.categories.filter(item => item.is_visible)) {
+        const providers = await this.getRotatedProviders(taluka.id, category.id);
+        if (providers.length >= minimumProviders) {
+          routes.push({
+            district_slug: district.slug,
+            taluka_slug: taluka.slug,
+            category_slug: category.slug,
+          });
+        }
+      }
+    }
+    return routes;
   }
 
   async submitVendorApplication(data: {
@@ -1636,7 +1685,7 @@ class MockDataRepository implements DataRepository {
     return newTaluka;
   }
 
-  async updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order'>>): Promise<{ success: boolean; error?: string }> {
+  async updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order' | 'center_latitude' | 'center_longitude' | 'location_detection_radius_km'>>): Promise<{ success: boolean; error?: string }> {
     const taluka = this.talukas.find(t => t.id === id);
     if (!taluka) return { success: false, error: 'Taluka not found' };
     Object.assign(taluka, updates, { updated_at: new Date().toISOString() });
@@ -1666,15 +1715,27 @@ export class SupabaseDataRepository implements DataRepository {
   private client: SupabaseClient;
   private adminClient: SupabaseClient | null;
   private fallback: MockDataRepository;
+  private readonly production: boolean;
 
-  constructor(client: SupabaseClient, env?: Record<string, any>, fallback?: MockDataRepository) {
+  constructor(client: SupabaseClient, env?: RuntimeEnv, fallback?: MockDataRepository) {
     this.client = client;
     this.adminClient = getAdminSupabaseClient(env);
     this.fallback = fallback || new MockDataRepository();
+    this.production = isProductionRuntime(env);
   }
 
   private getPrivilegedClient(): SupabaseClient {
-    return this.adminClient || this.client;
+    if (!this.adminClient) {
+      throw new Error('Missing required runtime configuration: SUPABASE_SERVICE_ROLE_KEY');
+    }
+    return this.adminClient;
+  }
+
+  private async fallbackOrThrow<T>(fallback: () => Promise<T>, operation: string): Promise<T> {
+    if (this.production) {
+      throw new Error(`Supabase ${operation} failed. Refusing to serve mock data in production.`);
+    }
+    return fallback();
   }
 
   async getDistricts(): Promise<District[]> {
@@ -1684,10 +1745,10 @@ export class SupabaseDataRepository implements DataRepository {
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallback.getDistricts();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
       return data;
     } catch {
-      return this.fallback.getDistricts();
+      return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
     }
   }
 
@@ -1699,10 +1760,10 @@ export class SupabaseDataRepository implements DataRepository {
         .eq('slug', slug)
         .eq('is_active', true)
         .maybeSingle();
-      if (error) return this.fallback.getDistrictBySlug(slug);
+      if (error) return this.fallbackOrThrow(() => this.fallback.getDistrictBySlug(slug), 'district lookup');
       return data;
     } catch {
-      return this.fallback.getDistrictBySlug(slug);
+      return this.fallbackOrThrow(() => this.fallback.getDistrictBySlug(slug), 'district lookup');
     }
   }
 
@@ -1717,10 +1778,10 @@ export class SupabaseDataRepository implements DataRepository {
         query = query.eq('district_id', districtId);
       }
       const { data, error } = await query;
-      if (error || !data) return this.fallback.getTalukas(districtId);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getTalukas(districtId), 'taluka lookup');
       return data;
     } catch {
-      return this.fallback.getTalukas(districtId);
+      return this.fallbackOrThrow(() => this.fallback.getTalukas(districtId), 'taluka lookup');
     }
   }
 
@@ -1733,10 +1794,10 @@ export class SupabaseDataRepository implements DataRepository {
         .eq('districts.slug', districtSlug)
         .eq('is_active', true)
         .maybeSingle();
-      if (error || !data) return this.fallback.getTalukaBySlugs(districtSlug, talukaSlug);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getTalukaBySlugs(districtSlug, talukaSlug), 'taluka lookup');
       return data;
     } catch {
-      return this.fallback.getTalukaBySlugs(districtSlug, talukaSlug);
+      return this.fallbackOrThrow(() => this.fallback.getTalukaBySlugs(districtSlug, talukaSlug), 'taluka lookup');
     }
   }
 
@@ -1747,7 +1808,7 @@ export class SupabaseDataRepository implements DataRepository {
         .select('*, category_aliases(alias)')
         .eq('is_visible', true)
         .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallback.getCategories();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
       return data.map((c: any) => ({
         ...c,
         aliases: Array.isArray(c.category_aliases)
@@ -1755,7 +1816,7 @@ export class SupabaseDataRepository implements DataRepository {
           : (c.aliases || []),
       }));
     } catch {
-      return this.fallback.getCategories();
+      return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
     }
   }
 
@@ -1767,7 +1828,7 @@ export class SupabaseDataRepository implements DataRepository {
         .eq('slug', slug)
         .eq('is_visible', true)
         .maybeSingle();
-      if (error || !data) return this.fallback.getCategoryBySlug(slug);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getCategoryBySlug(slug), 'category lookup');
       return {
         ...data,
         aliases: Array.isArray(data.category_aliases)
@@ -1775,28 +1836,141 @@ export class SupabaseDataRepository implements DataRepository {
           : (data.aliases || []),
       };
     } catch {
-      return this.fallback.getCategoryBySlug(slug);
+      return this.fallbackOrThrow(() => this.fallback.getCategoryBySlug(slug), 'category lookup');
     }
   }
 
   async getRotatedProviders(talukaId: string, categoryId: string, date: Date = new Date()): Promise<RotatedProviderItem[]> {
     try {
-      return this.fallback.getRotatedProviders(talukaId, categoryId, date);
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client.rpc('get_active_rotated_providers', {
+        p_taluka_id: talukaId,
+        p_category_id: categoryId,
+        p_target_timestamp: date.toISOString(),
+      });
+      if (error || !data) {
+        return this.fallbackOrThrow(() => this.fallback.getRotatedProviders(talukaId, categoryId, date), 'provider rotation lookup');
+      }
+      return data.map((item: any) => ({
+        ...item,
+        first_activated_at: item.first_activated_at || null,
+        display_order: Number(item.display_order),
+      })) as RotatedProviderItem[];
     } catch {
-      return this.fallback.getRotatedProviders(talukaId, categoryId, date);
+      return this.fallbackOrThrow(() => this.fallback.getRotatedProviders(talukaId, categoryId, date), 'provider rotation lookup');
     }
   }
 
   async getProviderBySlug(slug: string): Promise<any> {
     try {
-      return this.fallback.getProviderBySlug(slug);
+      const client = this.getPrivilegedClient();
+      const { data: vendor, error: vendorError } = await client
+        .from('vendors')
+        .select('*')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (vendorError || !vendor) {
+        if (!vendorError) return null;
+        return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider lookup');
+      }
+
+      const { data: rawListings, error: listingsError } = await client
+        .from('vendor_listings')
+        .select('*, category:categories(*), taluka:talukas(*)')
+        .eq('vendor_id', vendor.id)
+        .eq('approval_status', 'approved')
+        .eq('is_visible', true);
+      if (listingsError) {
+        return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider listings lookup');
+      }
+
+      const listingIds = (rawListings || []).map((listing: any) => listing.id);
+      const [subscriptionsResult, trialsResult, areasResult] = await Promise.all([
+        listingIds.length
+          ? client.from('subscriptions').select('*').in('vendor_listing_id', listingIds).eq('status', 'active')
+          : Promise.resolve({ data: [], error: null }),
+        listingIds.length
+          ? client.from('listing_trials').select('*').in('vendor_listing_id', listingIds).in('status', ['active', 'converted'])
+          : Promise.resolve({ data: [], error: null }),
+        client.from('vendor_service_areas').select('*').eq('vendor_id', vendor.id).order('sort_order'),
+      ]);
+      if (subscriptionsResult.error || trialsResult.error || areasResult.error) {
+        return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider detail lookup');
+      }
+
+      const now = new Date();
+      const isCurrent = (record: { starts_at: string; ends_at: string }) =>
+        new Date(record.starts_at) <= now && new Date(record.ends_at) > now;
+      const listings = (rawListings || []).map((listing: any) => {
+        const subscription = (subscriptionsResult.data || []).find((item: any) => item.vendor_listing_id === listing.id && isCurrent(item));
+        const currentTrial = (trialsResult.data || []).find((item: any) => item.vendor_listing_id === listing.id && isCurrent(item));
+        return { ...listing, subscription, current_trial: currentTrial };
+      });
+      const isEligible = vendor.approval_status === 'approved'
+        && !vendor.is_suspended
+        && vendor.is_publicly_visible
+        && listings.some((listing: any) => Boolean(listing.subscription || listing.current_trial));
+
+      return {
+        vendor,
+        listings,
+        serviceAreas: (areasResult.data || []).map((area: any) => ({
+          name_en: area.area_name_en,
+          name_mr: area.area_name_mr,
+        })),
+        isEligible,
+      };
     } catch {
-      return this.fallback.getProviderBySlug(slug);
+      return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider lookup');
     }
   }
 
   async getDirectoryPageSettings(talukaId: string, categoryId: string): Promise<DirectoryPageSettings | null> {
-    return this.fallback.getDirectoryPageSettings(talukaId, categoryId);
+    try {
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client
+        .from('directory_page_settings')
+        .select('*')
+        .eq('taluka_id', talukaId)
+        .eq('category_id', categoryId)
+        .eq('is_enabled', true)
+        .maybeSingle();
+      if (error) {
+        return this.fallbackOrThrow(() => this.fallback.getDirectoryPageSettings(talukaId, categoryId), 'directory SEO settings lookup');
+      }
+      return data;
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getDirectoryPageSettings(talukaId, categoryId), 'directory SEO settings lookup');
+    }
+  }
+
+  async getSiteSettings(): Promise<SiteSettings> {
+    try {
+      const { data, error } = await this.client
+        .from('site_settings')
+        .select('id, annual_listing_price, max_active_providers_per_taluka_category, seo_min_active_providers, support_mobile, support_whatsapp, business_email')
+        .eq('id', 1)
+        .single();
+      if (error || !data) {
+        return this.fallbackOrThrow(() => this.fallback.getSiteSettings(), 'site settings lookup');
+      }
+      return data as SiteSettings;
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getSiteSettings(), 'site settings lookup');
+    }
+  }
+
+  async getIndexableDirectoryRoutes(): Promise<IndexableDirectoryRoute[]> {
+    try {
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client.rpc('get_indexable_directory_routes');
+      if (error || !data) {
+        return this.fallbackOrThrow(() => this.fallback.getIndexableDirectoryRoutes(), 'indexable directory route lookup');
+      }
+      return data as IndexableDirectoryRoute[];
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getIndexableDirectoryRoutes(), 'indexable directory route lookup');
+    }
   }
 
   async submitVendorApplication(data: any): Promise<{ id: string; success: boolean }> {
@@ -1822,31 +1996,132 @@ export class SupabaseDataRepository implements DataRepository {
         }])
         .select('id')
         .single();
-      if (error || !res) return this.fallback.submitVendorApplication(data);
+      if (error || !res) return this.fallbackOrThrow(() => this.fallback.submitVendorApplication(data), 'application submission');
+      const { error: itemError } = await client.from('vendor_application_items').insert(
+        data.category_ids.map((categoryId: string) => ({
+          application_id: res.id,
+          category_id: categoryId,
+          taluka_id: data.taluka_id,
+        })),
+      );
+      if (itemError) {
+        await client.from('vendor_applications').delete().eq('id', res.id);
+        return this.fallbackOrThrow(() => this.fallback.submitVendorApplication(data), 'application category submission');
+      }
       return { id: res.id, success: true };
     } catch {
-      return this.fallback.submitVendorApplication(data);
+      return this.fallbackOrThrow(() => this.fallback.submitVendorApplication(data), 'application submission');
     }
   }
 
   async recordAnalyticsEvent(data: any): Promise<void> {
     try {
-      await this.client.from('analytics_events').insert([data]);
+      const client = this.getPrivilegedClient();
+      const { error } = await client.from('analytics_events').insert([data]);
+      if (error) throw error;
     } catch {
-      await this.fallback.recordAnalyticsEvent(data);
+      await this.fallbackOrThrow(() => this.fallback.recordAnalyticsEvent(data), 'analytics event write');
     }
   }
 
   async getAdminMetrics() {
-    return this.fallback.getAdminMetrics();
+    try {
+      const client = this.getPrivilegedClient();
+      const [vendors, listings, applications, payments, trials, subscriptions] = await Promise.all([
+        client.from('vendors').select('id'),
+        client.from('vendor_listings').select('id, approval_status'),
+        client.from('vendor_applications').select('id, status'),
+        client.from('payments').select('amount'),
+        client.from('listing_trials').select('vendor_listing_id, starts_at, ends_at, status'),
+        client.from('subscriptions').select('vendor_listing_id, starts_at, ends_at, status'),
+      ]);
+      if ([vendors, listings, applications, payments, trials, subscriptions].some(result => result.error)) {
+        return this.fallbackOrThrow(() => this.fallback.getAdminMetrics(), 'admin metrics lookup');
+      }
+      const now = new Date();
+      const isCurrent = (record: any) => record.status === 'active'
+        && new Date(record.starts_at) <= now
+        && new Date(record.ends_at) > now;
+      const activeListingIds = new Set([
+        ...(trials.data || []).filter(isCurrent).map((item: any) => item.vendor_listing_id),
+        ...(subscriptions.data || []).filter(isCurrent).map((item: any) => item.vendor_listing_id),
+      ]);
+      return {
+        totalVendors: (vendors.data || []).length,
+        activeListings: activeListingIds.size,
+        activeTrials: (trials.data || []).filter(isCurrent).length,
+        waitlistedListings: (listings.data || []).filter((item: any) => item.approval_status === 'waitlisted').length,
+        pendingApplications: (applications.data || []).filter((item: any) => item.status === 'pending').length,
+        totalRevenue: (payments.data || []).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0),
+      };
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getAdminMetrics(), 'admin metrics lookup');
+    }
   }
 
   async getAdminTrialMetrics(): Promise<AdminTrialMetrics> {
-    return this.fallback.getAdminTrialMetrics();
+    try {
+      const client = this.getPrivilegedClient();
+      const [trials, subscriptions] = await Promise.all([
+        client.from('listing_trials').select('*'),
+        client.from('subscriptions').select('*').eq('status', 'active'),
+      ]);
+      if (trials.error || subscriptions.error) {
+        return this.fallbackOrThrow(() => this.fallback.getAdminTrialMetrics(), 'trial metrics lookup');
+      }
+      const now = Date.now();
+      const activeTrials = (trials.data || []).filter((trial: any) => trial.status === 'active' && new Date(trial.starts_at).getTime() <= now && new Date(trial.ends_at).getTime() > now);
+      const countWithin = (records: any[], days: number) => records.filter(record => {
+        const remaining = new Date(record.ends_at).getTime() - now;
+        return remaining > 0 && remaining <= days * 86400000;
+      }).length;
+      const expiredUnpaidTrials = (trials.data || []).filter((trial: any) => trial.status === 'expired' || (trial.status === 'active' && new Date(trial.ends_at).getTime() <= now)).length;
+      const convertedTrials = (trials.data || []).filter((trial: any) => trial.status === 'converted').length;
+      const completedTrials = convertedTrials + expiredUnpaidTrials;
+      const activeSubscriptions = (subscriptions.data || []).filter((subscription: any) => new Date(subscription.starts_at).getTime() <= now && new Date(subscription.ends_at).getTime() > now);
+      return {
+        activeTrials: activeTrials.length,
+        trialsExpiring7Days: countWithin(activeTrials, 7),
+        trialsExpiring3Days: countWithin(activeTrials, 3),
+        expiredUnpaidTrials,
+        convertedTrials,
+        trialConversionRate: completedTrials ? Math.round((convertedTrials / completedTrials) * 100) : 0,
+        completedTrials,
+        upcomingRenewals30Days: countWithin(activeSubscriptions, 30),
+        upcomingRenewals15Days: countWithin(activeSubscriptions, 15),
+        upcomingRenewals7Days: countWithin(activeSubscriptions, 7),
+      };
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getAdminTrialMetrics(), 'trial metrics lookup');
+    }
   }
 
   async getAdminVendors() {
-    return this.fallback.getAdminVendors();
+    try {
+      const client = this.getPrivilegedClient();
+      const [vendors, listings, subscriptions, trials] = await Promise.all([
+        client.from('vendors').select('*').order('created_at', { ascending: false }),
+        client.from('vendor_listings').select('*, category:categories(*), taluka:talukas(*)'),
+        client.from('subscriptions').select('*').eq('status', 'active').order('ends_at', { ascending: false }),
+        client.from('listing_trials').select('*').order('created_at', { ascending: false }),
+      ]);
+      if ([vendors, listings, subscriptions, trials].some(result => result.error)) {
+        return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');
+      }
+      return (vendors.data || []).map((vendor: any) => ({
+        ...vendor,
+        listings: (listings.data || [])
+          .filter((listing: any) => listing.vendor_id === vendor.id)
+          .map((listing: any) => ({
+            ...listing,
+            subscription: (subscriptions.data || []).find((subscription: any) => subscription.vendor_listing_id === listing.id),
+            current_trial: (trials.data || []).find((trial: any) => trial.vendor_listing_id === listing.id),
+            trials: (trials.data || []).filter((trial: any) => trial.vendor_listing_id === listing.id),
+          })),
+      }));
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');
+    }
   }
 
   async getAdminApplications(): Promise<VendorApplication[]> {
@@ -1856,31 +2131,190 @@ export class SupabaseDataRepository implements DataRepository {
         .from('vendor_applications')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data) return this.fallback.getAdminApplications();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAdminApplications(), 'admin application lookup');
       return data;
     } catch {
-      return this.fallback.getAdminApplications();
+      return this.fallbackOrThrow(() => this.fallback.getAdminApplications(), 'admin application lookup');
     }
   }
 
   async startTrial(params: any) {
-    return this.fallback.startTrial(params);
+    try {
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client.rpc('start_listing_trial', {
+        p_listing_id: params.listing_id,
+        p_start_date: params.start_date || new Date().toISOString(),
+        p_is_override: Boolean(params.is_override),
+        p_override_reason: params.override_reason || null,
+        p_admin_user_id: params.admin_id || null,
+      });
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.startTrial(params), 'trial activation');
+      const result = data as any;
+      if (result.success && result.trial_id) {
+        const { data: trial } = await client.from('listing_trials').select('*').eq('id', result.trial_id).maybeSingle();
+        result.trial = trial || undefined;
+      }
+      return result;
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.startTrial(params), 'trial activation');
+    }
   }
 
   async convertTrialToPaid(params: any) {
-    return this.fallback.convertTrialToPaid(params);
+    return this.activateListing(params);
   }
 
   async activateListing(params: any) {
-    return this.fallback.activateListing(params);
+    try {
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client.rpc('activate_vendor_listing', {
+        p_listing_id: params.listing_id,
+        p_amount: params.amount,
+        p_payment_method: params.payment_method,
+        p_reference_number: params.reference_number,
+        p_notes: params.notes || null,
+        p_admin_user_id: params.admin_id || null,
+        p_start_date: params.custom_start_date || null,
+      });
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.activateListing(params), 'listing activation');
+      const result = data as any;
+      if (result.success && result.subscription_id) {
+        const { data: subscription } = await client.from('subscriptions').select('*').eq('id', result.subscription_id).maybeSingle();
+        result.subscription = subscription || undefined;
+      }
+      return result;
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.activateListing(params), 'listing activation');
+    }
   }
 
   async getListingPerformanceReport(params: any) {
-    return this.fallback.getListingPerformanceReport(params);
+    try {
+      const client = this.getPrivilegedClient();
+      const { data: vendor, error: vendorError } = await client
+        .from('vendors')
+        .select('*')
+        .eq('id', params.vendor_id)
+        .maybeSingle();
+      if (vendorError || !vendor) {
+        return this.fallbackOrThrow(() => this.fallback.getListingPerformanceReport(params), 'performance report vendor lookup');
+      }
+
+      const { data: rawListings, error: listingsError } = await client
+        .from('vendor_listings')
+        .select('*, category:categories(*), taluka:talukas(*)')
+        .eq('vendor_id', vendor.id);
+      if (listingsError) {
+        return this.fallbackOrThrow(() => this.fallback.getListingPerformanceReport(params), 'performance report listing lookup');
+      }
+      const listingIds = (rawListings || []).map((listing: any) => listing.id);
+      const [subscriptions, trials] = await Promise.all([
+        listingIds.length ? client.from('subscriptions').select('*').in('vendor_listing_id', listingIds).eq('status', 'active') : Promise.resolve({ data: [], error: null }),
+        listingIds.length ? client.from('listing_trials').select('*').in('vendor_listing_id', listingIds) : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (subscriptions.error || trials.error) {
+        return this.fallbackOrThrow(() => this.fallback.getListingPerformanceReport(params), 'performance report subscription lookup');
+      }
+      const enrichedListings = (rawListings || []).map((listing: any) => ({
+        ...listing,
+        subscription: (subscriptions.data || []).find((subscription: any) => subscription.vendor_listing_id === listing.id),
+        current_trial: (trials.data || []).find((trial: any) => trial.vendor_listing_id === listing.id && trial.status === 'active'),
+      }));
+      const targetListing = params.listing_id
+        ? enrichedListings.find((listing: any) => listing.id === params.listing_id)
+        : undefined;
+
+      const now = new Date();
+      const rangeType = params.range_type || '30d';
+      let from = new Date(now.getTime() - 30 * 86400000);
+      let to = now;
+      if (rangeType === '7d') from = new Date(now.getTime() - 7 * 86400000);
+      if (rangeType === '90d') from = new Date(now.getTime() - 90 * 86400000);
+      if (rangeType === 'all') from = new Date('2020-01-01T00:00:00Z');
+      if (rangeType === 'custom' && params.from_date && params.to_date) {
+        from = new Date(params.from_date);
+        to = new Date(params.to_date);
+      }
+      const periodRecord = rangeType === 'trial'
+        ? targetListing?.current_trial
+        : rangeType === 'subscription'
+          ? targetListing?.subscription
+          : null;
+      if (periodRecord) {
+        from = new Date(periodRecord.starts_at);
+        to = new Date(Math.min(new Date(periodRecord.ends_at).getTime(), now.getTime()));
+      }
+
+      let eventsQuery = client
+        .from('analytics_events')
+        .select('vendor_listing_id, event_type')
+        .eq('vendor_id', vendor.id)
+        .gte('occurred_at', from.toISOString())
+        .lte('occurred_at', to.toISOString());
+      if (params.listing_id) eventsQuery = eventsQuery.eq('vendor_listing_id', params.listing_id);
+      const { data: events, error: eventsError } = await eventsQuery;
+      if (eventsError) {
+        return this.fallbackOrThrow(() => this.fallback.getListingPerformanceReport(params), 'performance event lookup');
+      }
+      const metricsFor = (records: any[]): PerformanceMetrics => {
+        const count = (eventType: string) => records.filter(record => record.event_type === eventType).length;
+        const call_clicks = count('call_click');
+        const whatsapp_clicks = count('whatsapp_click');
+        const directions_clicks = count('directions_click');
+        return {
+          profile_views: count('profile_view'),
+          call_clicks,
+          whatsapp_clicks,
+          directions_clicks,
+          share_clicks: count('share_click'),
+          total_contact_actions: calculateTotalContactActions({ call_clicks, whatsapp_clicks, directions_clicks }),
+        };
+      };
+      const breakdown = enrichedListings.map((listing: any) => ({
+        listing_id: listing.id,
+        category_name_en: listing.category.name_en,
+        category_name_mr: listing.category.name_mr,
+        taluka_name_en: listing.taluka.name_en,
+        taluka_name_mr: listing.taluka.name_mr,
+        metrics: metricsFor((events || []).filter((event: any) => event.vendor_listing_id === listing.id)),
+      }));
+      return {
+        vendor,
+        listing: targetListing,
+        allListings: enrichedListings,
+        range_type: rangeType,
+        from_date: from.toISOString(),
+        to_date: to.toISOString(),
+        metrics: metricsFor(events || []),
+        breakdown: enrichedListings.length > 1 ? breakdown : undefined,
+      };
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.getListingPerformanceReport(params), 'performance report lookup');
+    }
   }
 
   async saveReportSnapshot(params: any) {
-    return this.fallback.saveReportSnapshot(params);
+    try {
+      const client = this.getPrivilegedClient();
+      const { data, error } = await client
+        .from('vendor_report_snapshots')
+        .insert({
+          vendor_id: params.vendor_id,
+          vendor_listing_id: params.vendor_listing_id || null,
+          from_date: params.from_date,
+          to_date: params.to_date,
+          report_type: params.report_type,
+          metrics_json: params.metrics,
+          notes: params.notes || null,
+          created_by: params.admin_id || null,
+        })
+        .select('*')
+        .single();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.saveReportSnapshot(params), 'report snapshot save');
+      return { ...data, metrics: data.metrics_json } as VendorReportSnapshot;
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.saveReportSnapshot(params), 'report snapshot save');
+    }
   }
 
   async updateVendorProfile(vendorId: string, updates: any) {
@@ -1890,10 +2324,10 @@ export class SupabaseDataRepository implements DataRepository {
         .from('vendors')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', vendorId);
-      if (error) return this.fallback.updateVendorProfile(vendorId, updates);
+      if (error) return this.fallbackOrThrow(() => this.fallback.updateVendorProfile(vendorId, updates), 'vendor profile update');
       return { success: true };
     } catch {
-      return this.fallback.updateVendorProfile(vendorId, updates);
+      return this.fallbackOrThrow(() => this.fallback.updateVendorProfile(vendorId, updates), 'vendor profile update');
     }
   }
 
@@ -1904,10 +2338,10 @@ export class SupabaseDataRepository implements DataRepository {
         .from('payments')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data) return this.fallback.getPayments();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getPayments(), 'payment lookup');
       return data;
     } catch {
-      return this.fallback.getPayments();
+      return this.fallbackOrThrow(() => this.fallback.getPayments(), 'payment lookup');
     }
   }
 
@@ -1918,10 +2352,10 @@ export class SupabaseDataRepository implements DataRepository {
         .from('districts')
         .select('*')
         .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallback.getAllDistrictsAdmin();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAllDistrictsAdmin(), 'admin district lookup');
       return data;
     } catch {
-      return this.fallback.getAllDistrictsAdmin();
+      return this.fallbackOrThrow(() => this.fallback.getAllDistrictsAdmin(), 'admin district lookup');
     }
   }
 
@@ -1932,10 +2366,10 @@ export class SupabaseDataRepository implements DataRepository {
         .from('talukas')
         .select('*, district:districts(*)')
         .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallback.getAllTalukasAdmin();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAllTalukasAdmin(), 'admin taluka lookup');
       return data;
     } catch {
-      return this.fallback.getAllTalukasAdmin();
+      return this.fallbackOrThrow(() => this.fallback.getAllTalukasAdmin(), 'admin taluka lookup');
     }
   }
 
@@ -1946,7 +2380,7 @@ export class SupabaseDataRepository implements DataRepository {
         .from('categories')
         .select('*, category_aliases(alias)')
         .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallback.getAllCategoriesAdmin();
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAllCategoriesAdmin(), 'admin category lookup');
       return data.map((c: any) => ({
         ...c,
         aliases: Array.isArray(c.category_aliases)
@@ -1954,7 +2388,7 @@ export class SupabaseDataRepository implements DataRepository {
           : (c.aliases || []),
       }));
     } catch {
-      return this.fallback.getAllCategoriesAdmin();
+      return this.fallbackOrThrow(() => this.fallback.getAllCategoriesAdmin(), 'admin category lookup');
     }
   }
 
@@ -1966,10 +2400,10 @@ export class SupabaseDataRepository implements DataRepository {
         .insert([district])
         .select()
         .single();
-      if (error || !data) return this.fallback.addDistrict(district);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.addDistrict(district), 'district creation');
       return data;
     } catch {
-      return this.fallback.addDistrict(district);
+      return this.fallbackOrThrow(() => this.fallback.addDistrict(district), 'district creation');
     }
   }
 
@@ -1980,10 +2414,10 @@ export class SupabaseDataRepository implements DataRepository {
         .from('districts')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id);
-      if (error) return this.fallback.updateDistrict(id, updates);
+      if (error) return this.fallbackOrThrow(() => this.fallback.updateDistrict(id, updates), 'district update');
       return { success: true };
     } catch {
-      return this.fallback.updateDistrict(id, updates);
+      return this.fallbackOrThrow(() => this.fallback.updateDistrict(id, updates), 'district update');
     }
   }
 
@@ -1995,24 +2429,24 @@ export class SupabaseDataRepository implements DataRepository {
         .insert([taluka])
         .select()
         .single();
-      if (error || !data) return this.fallback.addTaluka(taluka);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.addTaluka(taluka), 'taluka creation');
       return data;
     } catch {
-      return this.fallback.addTaluka(taluka);
+      return this.fallbackOrThrow(() => this.fallback.addTaluka(taluka), 'taluka creation');
     }
   }
 
-  async updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order'>>): Promise<{ success: boolean; error?: string }> {
+  async updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order' | 'center_latitude' | 'center_longitude' | 'location_detection_radius_km'>>): Promise<{ success: boolean; error?: string }> {
     try {
       const client = this.getPrivilegedClient();
       const { error } = await client
         .from('talukas')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id);
-      if (error) return this.fallback.updateTaluka(id, updates);
+      if (error) return this.fallbackOrThrow(() => this.fallback.updateTaluka(id, updates), 'taluka update');
       return { success: true };
     } catch {
-      return this.fallback.updateTaluka(id, updates);
+      return this.fallbackOrThrow(() => this.fallback.updateTaluka(id, updates), 'taluka update');
     }
   }
 
@@ -2025,14 +2459,14 @@ export class SupabaseDataRepository implements DataRepository {
         .insert([catData])
         .select()
         .single();
-      if (error || !data) return this.fallback.addCategory(category);
+      if (error || !data) return this.fallbackOrThrow(() => this.fallback.addCategory(category), 'category creation');
       if (aliases && Array.isArray(aliases) && aliases.length > 0) {
         const aliasInserts = aliases.map(a => ({ category_id: data.id, alias: a.trim() }));
         await client.from('category_aliases').insert(aliasInserts);
       }
       return { ...data, aliases: aliases || [] };
     } catch {
-      return this.fallback.addCategory(category);
+      return this.fallbackOrThrow(() => this.fallback.addCategory(category), 'category creation');
     }
   }
 
@@ -2044,7 +2478,7 @@ export class SupabaseDataRepository implements DataRepository {
         .from('categories')
         .update({ ...catUpdates, updated_at: new Date().toISOString() })
         .eq('id', id);
-      if (error) return this.fallback.updateCategory(id, updates);
+      if (error) return this.fallbackOrThrow(() => this.fallback.updateCategory(id, updates), 'category update');
       if (aliases !== undefined && Array.isArray(aliases)) {
         await client.from('category_aliases').delete().eq('category_id', id);
         if (aliases.length > 0) {
@@ -2054,7 +2488,7 @@ export class SupabaseDataRepository implements DataRepository {
       }
       return { success: true };
     } catch {
-      return this.fallback.updateCategory(id, updates);
+      return this.fallbackOrThrow(() => this.fallback.updateCategory(id, updates), 'category update');
     }
   }
 }
@@ -2069,6 +2503,9 @@ export function getDataRepository(env?: Record<string, any>): DataRepository {
   }
   const supabase = getPublicSupabaseClient(env);
   if (!supabase) {
+    if (isProductionRuntime(env)) {
+      throw new Error('Supabase is not configured. Refusing to serve mock data in production.');
+    }
     return mockRepoInstance;
   }
   if (!supabaseRepoInstance) {

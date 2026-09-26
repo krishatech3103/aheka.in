@@ -4,6 +4,7 @@ import ProviderCard from '../../../../components/ProviderCard.astro';
 import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../../lib/i18n';
 import { getDataRepository } from '../../../../lib/repositories/dataRepository';
 import { shouldIndexDirectoryPage } from '../../../../lib/business/slotEnforcement';
+import { getSiteUrl } from '../../../../lib/runtime/config';
 
 const { locale, district: districtSlug, taluka: talukaSlug, category: categorySlug } = Astro.params;
 if (!locale || !isValidLocale(locale)) {
@@ -13,6 +14,7 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
+const siteUrl = getSiteUrl(Astro.url.origin);
 
 const repo = getDataRepository();
 const taluka = await repo.getTalukaBySlugs(districtSlug || '', talukaSlug || '');
@@ -63,7 +65,7 @@ const itemListSchema = {
       '@type': 'LocalBusiness',
       name: p.provider_name,
       legalName: p.business_name || p.provider_name,
-      url: `https://aheka.in/${safeLocale}/provider/${p.slug}`,
+      url: `${siteUrl}/${safeLocale}/provider/${p.slug}`,
       telephone: p.mobile,
       address: {
         '@type': 'PostalAddress',
@@ -84,25 +86,25 @@ const breadcrumbSchema = {
       '@type': 'ListItem',
       position: 1,
       name: dict.directory.breadcrumbsHome,
-      item: `https://aheka.in/${safeLocale}`,
+      item: `${siteUrl}/${safeLocale}`,
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: `${districtName} ${isMr ? 'जिल्हा' : 'District'}`,
-      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}`,
+      item: `${siteUrl}/${safeLocale}/${taluka.district.slug}`,
     },
     {
       '@type': 'ListItem',
       position: 3,
       name: `${talukaName} ${isMr ? 'तालुका' : 'Taluka'}`,
-      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}/${taluka.slug}`,
+      item: `${siteUrl}/${safeLocale}/${taluka.district.slug}/${taluka.slug}`,
     },
     {
       '@type': 'ListItem',
       position: 4,
       name: categoryName,
-      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}/${taluka.slug}/${category.slug}`,
+      item: `${siteUrl}/${safeLocale}/${taluka.district.slug}/${taluka.slug}/${category.slug}`,
     },
   ],
 };
@@ -220,7 +222,7 @@ const breadcrumbSchema = {
             href={`/${safeLocale}/join`}
             class="inline-flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors shadow-sm"
           >
-            {dict.home.joinCtaButton} (₹९९९/वर्ष)
+            {dict.home.joinCtaButton} ({isMr ? '₹९९९/वर्ष' : '₹999/year'})
           </a>
         </div>
       </div>

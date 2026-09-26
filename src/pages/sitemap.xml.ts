@@ -1,16 +1,17 @@
 import type { APIRoute } from 'astro';
 import { getDataRepository } from '../lib/repositories/dataRepository';
 import { LOCALES, type Locale } from '../lib/i18n';
-import type { District, Taluka, Category } from '../lib/types/database';
+import type { District, Taluka } from '../lib/types/database';
+import { getSiteUrl } from '../lib/runtime/config';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ url }) => {
   const repo = getDataRepository();
   const districts: District[] = await repo.getDistricts();
   const talukas: Taluka[] = await repo.getTalukas();
-  const categories: Category[] = await repo.getCategories();
   const allVendors = await repo.getAdminVendors();
+  const indexableDirectoryRoutes = await repo.getIndexableDirectoryRoutes();
 
-  const siteUrl = 'https://aheka.in';
+  const siteUrl = getSiteUrl(url.origin);
   const urls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [];
 
   const today = new Date().toISOString().split('T')[0];
@@ -26,7 +27,7 @@ export const GET: APIRoute = async () => {
   });
 
   // 2. Static / Trust Pages
-  ['about', 'privacy', 'terms', 'provider-terms', 'join', 'services'].forEach((path: string) => {
+  ['about', 'contact', 'privacy', 'terms', 'provider-terms', 'join', 'services'].forEach((path: string) => {
     LOCALES.forEach((locale: Locale) => {
       urls.push({
         loc: `${siteUrl}/${locale}/${path}`,
@@ -59,16 +60,17 @@ export const GET: APIRoute = async () => {
         });
       });
 
-      // 4. Category Pages (Directory)
-      categories.forEach((c: Category) => {
-        LOCALES.forEach((locale: Locale) => {
-          urls.push({
-            loc: `${siteUrl}/${locale}/${d.slug}/${t.slug}/${c.slug}`,
-            lastmod: today,
-            changefreq: 'daily',
-            priority: '0.9',
-          });
-        });
+    });
+  });
+
+  // 4. Directory pages only when they are indexable. Thin pages stay out of the sitemap.
+  indexableDirectoryRoutes.forEach((route) => {
+    LOCALES.forEach((locale: Locale) => {
+      urls.push({
+        loc: `${siteUrl}/${locale}/${route.district_slug}/${route.taluka_slug}/${route.category_slug}`,
+        lastmod: today,
+        changefreq: 'daily',
+        priority: '0.9',
       });
     });
   });

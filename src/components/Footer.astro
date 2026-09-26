@@ -24,6 +24,7 @@ const {
 
 const dict = getDictionary(locale);
 const isMr = locale === 'mr';
+const brandLabel = isMr ? dict.brand.devanagariName : dict.brand.name;
 const currentYear = new Date().getFullYear();
 
 // Fallback fetch from repository if not provided
@@ -63,11 +64,8 @@ const popularCategories = categories
       <div class="space-y-3.5 notranslate" translate="no">
         <a href={`/${locale}`} class="flex items-center gap-2.5 group">
           <LogoIcon size={36} className="w-9 h-9 rounded-xl shadow-xs group-hover:scale-105 transition-transform" />
-          <span class="text-xl font-black tracking-tight text-ink-primary flex items-center gap-1.5">
-            Aheka
-            <span class="text-brand-600 dark:text-brand-400 font-extrabold text-xs bg-brand-50 dark:bg-brand-950/60 px-1.5 py-0.5 rounded border border-brand-200 dark:border-brand-800">
-              आहे का?
-            </span>
+          <span class="text-xl font-black tracking-tight text-ink-primary">
+            {brandLabel}
           </span>
         </a>
         <p class="text-xs sm:text-sm text-ink-secondary leading-relaxed">
@@ -164,6 +162,11 @@ const popularCategories = categories
           <li>
             <a href={`/${locale}/about`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
               {dict.nav.about}
+            </a>
+          </li>
+          <li>
+            <a href={`/${locale}/contact`} class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+              {dict.nav.contact}
             </a>
           </li>
           <li>

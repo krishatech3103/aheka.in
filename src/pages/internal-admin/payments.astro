@@ -7,7 +7,7 @@ import { getDataRepository } from '../../lib/repositories/dataRepository';
 
 const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
 
-const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+const adminToken = Astro.cookies.get('aheka_admin_session')?.value;
 if (!adminToken) {
   return Astro.redirect(`/${adminEntryPath}/login`, 302);
 }

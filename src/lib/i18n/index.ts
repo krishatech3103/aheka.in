@@ -1,8 +1,22 @@
 export type Locale = 'mr' | 'en';
 
-export const DEFAULT_LOCALE: Locale = 'mr';
-export const SUPPORTED_LOCALES: Locale[] = ['mr', 'en'];
+// English is the public default. Marathi remains a complete, opt-in locale.
+export const DEFAULT_LOCALE: Locale = 'en';
+export const SUPPORTED_LOCALES: Locale[] = ['en', 'mr'];
 export const LOCALES = SUPPORTED_LOCALES;
+
+/**
+ * Selects only the requested translation. It deliberately never falls back to
+ * the other language: showing Marathi on an English page (or vice versa) is
+ * more confusing than omitting an untranslated optional field.
+ */
+export function getLocalizedText(
+  locale: Locale,
+  english: string | null | undefined,
+  marathi: string | null | undefined
+): string {
+  return (locale === 'mr' ? marathi : english)?.trim() || '';
+}
 
 export const dictionaries = {
   mr: {
@@ -16,17 +30,18 @@ export const dictionaries = {
     nav: {
       home: 'मुख्यपृष्ठ',
       services: 'सर्व सेवा',
-      join: 'Aheka वर सेवा नोंदवा',
+      join: 'आहे का? वर सेवा नोंदवा',
       about: 'आमच्याबद्दल',
-      contact: 'संपर्क',
+      contact: 'आमच्याशी संपर्क करा',
       privacy: 'गोपनीयता धोरण',
       terms: 'अटी व शर्ती',
       providerTerms: 'सेवा प्रदाता अटी',
       changeLocation: 'स्थान बदला',
+      chooseLocation: 'स्थान निवडा',
       selectDistrict: 'जिल्हा निवडा',
       selectTaluka: 'तालुका निवडा',
       vendorLogin: 'सेवा प्रदाता लॉगिन',
-      adminLogin: 'Admin लॉगिन',
+      adminLogin: 'प्रशासक प्रवेश',
     },
     actions: {
       callNow: 'कॉल करा',
@@ -35,7 +50,7 @@ export const dictionaries = {
       share: 'शेअर करा',
       viewProfile: 'प्रोफाईल पहा',
       copied: 'लिंक कॉपी झाली!',
-      sharePrompt: 'Aheka वरील सेवा प्रदाता प्रोफाईल पहा:',
+      sharePrompt: 'या प्लॅटफॉर्मवरील सेवा प्रदात्याची प्रोफाइल पहा:',
       submitApplication: 'अर्ज सादर करा',
       login: 'लॉगिन करा',
       logout: 'लॉगआउट',
@@ -50,6 +65,18 @@ export const dictionaries = {
       dark: 'गडद',
       system: 'सिस्टम',
     },
+    locationDetection: {
+      useMyLocation: 'माझे ठिकाण वापरा',
+      locating: 'ठिकाण शोधत आहे...',
+      locationSelected: 'जवळचा समर्थित तालुका निवडला:',
+      privacyNote: 'तुमचे ठिकाण फक्त या ब्राउझरमध्ये तालुका निवडण्यासाठी वापरले जाते.',
+      unavailable: 'या ब्राउझरमध्ये स्थान सेवा उपलब्ध नाही. कृपया तालुका स्वतः निवडा.',
+      permissionDenied: 'ठिकाणाची परवानगी मिळाली नाही. कृपया तालुका स्वतः निवडा.',
+      positionUnavailable: 'तुमचे ठिकाण मिळू शकले नाही. कृपया तालुका स्वतः निवडा.',
+      timeout: 'ठिकाण शोधण्यास जास्त वेळ लागला. कृपया पुन्हा प्रयत्न करा किंवा तालुका स्वतः निवडा.',
+      lowAccuracy: 'ठिकाण पुरेसे अचूक नाही. कृपया पुन्हा प्रयत्न करा किंवा तालुका स्वतः निवडा.',
+      noConfidentMatch: 'जवळचा तालुका खात्रीने ओळखता आला नाही. कृपया तालुका स्वतः निवडा.',
+    },
     directory: {
       breadcrumbsHome: 'मुख्य',
       providersIn: 'मधील सेवा प्रदाते',
@@ -58,10 +85,10 @@ export const dictionaries = {
       years: 'वर्षे',
       serviceAreas: 'सेवा क्षेत्रे',
       fullAddress: 'पत्ता',
-      verifiedBadge: 'Aheka Verified Profile',
-      verifiedTooltip: 'Aheka ने या सेवा प्रदात्याची मूलभूत माहिती आणि संपर्क तपशील तपासले आहेत.',
+      verifiedBadge: 'आहे का? पडताळलेली प्रोफाइल',
+      verifiedTooltip: 'या प्लॅटफॉर्मने सेवा प्रदात्याची मूलभूत माहिती आणि संपर्क तपशील तपासले आहेत.',
       noProvidersTitle: 'या तालुक्यात सध्या हा सेवा प्रदाता उपलब्ध नाही',
-      noProvidersDesc: 'आम्ही या तालुक्यात नवीन सेवा प्रदाते लवकरच जोडत आहोत. तुम्ही ही सेवा देत असल्यास आजच Aheka शी जोडा.',
+      noProvidersDesc: 'आम्ही या तालुक्यात नवीन सेवा प्रदाते लवकरच जोडत आहोत. तुम्ही ही सेवा देत असल्यास आजच नोंदणी करा.',
       otherServicesInTaluka: 'या तालुक्यातील इतर सेवा',
       allCategoriesInMaharashtra: 'महाराष्ट्रातील सर्व सेवा प्रकार',
       dailyRotationNote: 'सर्व पात्र सेवा प्रदात्यांना दररोज निष्पक्ष रोटेशनद्वारे समान संधी मिळते.',
@@ -74,12 +101,12 @@ export const dictionaries = {
       searchButton: 'शोधा',
       locationLabel: 'तालुका निवडा',
       popularTalukas: 'लोकप्रिय तालुके',
-      providerCta: 'Aheka वर सेवा नोंदवा',
+      providerCta: 'आहे का? वर सेवा नोंदवा',
       vendorLogin: 'सेवा प्रदाता लॉगिन',
       popularServices: 'लोकप्रिय सेवा',
       popularServicesDesc: 'वारंवार लागणाऱ्या स्थानिक सेवा',
       viewAllServices: 'सर्व सेवा प्रकार पहा',
-      howItWorksTitle: 'Aheka कसे कार्य करते?',
+      howItWorksTitle: 'हे व्यासपीठ कसे कार्य करते?',
       howItWorksSub: 'कोणतेही ॲप डाऊनलोड न करता, कमिशन न देता थेट स्थानिक कारागिरांशी संपर्क साधा.',
       step1Title: '१. तालुका निवडा',
       step1Desc: 'तुमच्या जवळचे तंत्रज्ञ आणि कारागीर शोधण्यासाठी तुमचा जिल्हा व तालुका निवडा.',
@@ -89,14 +116,30 @@ export const dictionaries = {
       step3Desc: 'कोणतेही कमिशन किंवा मध्यस्थ नाही. थेट कामगाराशी बोला आणि काम ठरवा.',
       joinSectionBadge: 'स्थानिक कारागीर व व्यावसायिकांसाठी',
       joinSectionTitle: 'तुम्ही स्थानिक सेवा प्रदाता आहात का?',
-      joinSectionDesc: 'तुमच्या तालुक्यातील ग्राहकांना सहज सापडा. Aheka वर वार्षिक फक्त ₹९९९ मध्ये तुमची व्यावसायिक नोंदणी करा. थेट कॉल आणि व्हॉट्सॲप मेसेज मिळवा.',
-      joinCtaButton: 'Aheka वर सेवा नोंदवा',
-      whatsappPrefill: 'नमस्कार, मला Aheka वर तुमची प्रोफाईल दिसली. मला सेवेबद्दल चौकशी करायची आहे.',
+      joinSectionDesc: 'तुमच्या तालुक्यातील ग्राहकांना सहज सापडा. वार्षिक फक्त ₹९९९ मध्ये तुमची व्यावसायिक नोंदणी करा. थेट कॉल आणि व्हॉट्सॲप मेसेज मिळवा.',
+      joinCtaButton: 'आहे का? वर सेवा नोंदवा',
+      whatsappPrefill: 'नमस्कार, मला तुमची प्रोफाइल दिसली. मला सेवेबद्दल चौकशी करायची आहे.',
+    },
+    contactPage: {
+      badge: 'ग्राहक मदत',
+      title: 'स्थानिक सेवा शोधण्यात मदत हवी आहे?',
+      description: 'योग्य सेवा, तालुका किंवा सेवा प्रदाता शोधण्यासाठी आमच्या टीमशी थेट संपर्क करा.',
+      callTitle: 'फोन करा',
+      callDescription: 'त्वरित मदतीसाठी आमच्याशी बोला.',
+      whatsappTitle: 'व्हॉट्सॲप संदेश पाठवा',
+      whatsappDescription: 'तुमची गरज पाठवा; आम्ही शक्य तितक्या लवकर उत्तर देऊ.',
+      emailTitle: 'ईमेल पाठवा',
+      emailDescription: 'सर्वसाधारण प्रश्न किंवा भागीदारीसाठी लिहा.',
+      helpTitle: 'स्वतःहून शोधा',
+      helpDescription: 'सेवा पहा किंवा तुमचे ठिकाण निवडा आणि जवळचे सेवा प्रदाते शोधा.',
+      browseServices: 'सेवा पहा',
+      chooseLocation: 'स्थान निवडा',
+      listService: 'तुमची सेवा नोंदवा',
     },
     join: {
-      title: 'Aheka सेवा प्रदाता नोंदणी',
+      title: 'सेवा प्रदाता नोंदणी',
       subtitle: 'तुमच्या तालुक्यातील थेट ग्राहकांपर्यंत पोहोचा. कोणतीही कमिशन पद्धत नाही — फक्त वार्षिक ₹९९९.',
-      providerName: 'तुमचे नाव (Full Name)',
+      providerName: 'पूर्ण नाव',
       providerNamePlaceholder: 'उदा. राहुल रमेश पाटील',
       businessName: 'व्यवसाय / दुकानाचे नाव (पर्यायी)',
       businessNamePlaceholder: 'उदा. राहुल इलेक्ट्रिकल सर्व्हिसेस',
@@ -105,8 +148,8 @@ export const dictionaries = {
       whatsapp: 'व्हॉट्सॲप नंबर (पर्यायी, रिक्त असल्यास मोबाईल नंबर वापरला जाईल)',
       district: 'जिल्हा',
       taluka: 'तालुका',
-      categories: 'तुम्ही देत असलेल्या सेवा निवडा (Category)',
-      categoriesHelp: 'प्रत्येक सेवा प्रकार + तालुका = १ स्वतंत्र लिस्टिंग (₹९९९/वर्ष).',
+      categories: 'तुम्ही देत असलेल्या सेवा निवडा',
+      categoriesHelp: 'प्रत्येक सेवा प्रकार आणि तालुक्यासाठी स्वतंत्र नोंदणी असते (₹९९९/वर्ष).',
       experienceYears: 'कामाचा अनुभव (वर्षे)',
       address: 'पूर्ण पत्ता (दुकान किंवा राहण्याचा)',
       serviceAreas: 'सेवा देण्याची गावे / परिसर',
@@ -114,11 +157,11 @@ export const dictionaries = {
       mapsUrl: 'गुगल मॅप्स लोकेशन लिंक (पर्यायी)',
       profileImage: 'प्रोफाईल फोटो / दुकानाचा फोटो / लोगो (पर्यायी - कमाल १ फोटो)',
       profileImageHelp: 'तुमचा स्वतःचा फोटो, दुकानाचा बोर्ड किंवा लोगो अपलोड करू शकता. नसल्यास आकर्षक ब्रँडेड चिन्ह दाखवले जाईल.',
-      consent: 'मी पुष्टी करतो की मी दिलेली माहिती खरी आहे आणि ती Aheka वर सार्वजनिकपणे दाखवण्यास माझी संमती आहे.',
+      consent: 'मी पुष्टी करतो की मी दिलेली माहिती खरी आहे आणि ती सार्वजनिकपणे दाखवण्यास माझी संमती आहे.',
       submitButton: 'नोंदणी अर्ज सादर करा',
       submitting: 'नोंदणी अर्ज पाठवत आहे...',
       successTitle: 'अर्ज यशस्वीरीत्या सादर झाला!',
-      successDesc: 'तुमचा नोंदणी अर्ज आमच्याकडे प्राप्त झाला आहे. Aheka टीम १-२ दिवसांत तुमच्या मोबाईलवर संपर्क साधून पडताळणी करेल आणि पेमेंटनंतर लिस्टिंग सक्रिय करेल.',
+      successDesc: 'तुमचा नोंदणी अर्ज आमच्याकडे प्राप्त झाला आहे. आमची टीम १-२ दिवसांत तुमच्या मोबाईलवर संपर्क साधून पडताळणी करेल आणि पेमेंटनंतर नोंदणी सक्रिय करेल.',
       backHome: 'मुख्यपृष्ठावर जा',
     },
     vendorPortal: {
@@ -126,7 +169,7 @@ export const dictionaries = {
       welcome: 'स्वागत आहे',
       myProfile: 'माझी प्रोफाईल',
       myListings: 'माझ्या लिस्टिंग्स',
-      analytics: 'माझे आकडेवारी (Analytics)',
+      analytics: 'माझी आकडेवारी',
       views: 'प्रोफाईल पाहिली',
       calls: 'कॉल क्लिक्स',
       whatsappClicks: 'व्हॉट्सॲप क्लिक्स',
@@ -164,11 +207,12 @@ export const dictionaries = {
       services: 'All Services',
       join: 'List Your Service',
       about: 'About Us',
-      contact: 'Contact',
+      contact: 'Contact Us',
       privacy: 'Privacy Policy',
       terms: 'Terms & Conditions',
       providerTerms: 'Provider Terms',
       changeLocation: 'Change Location',
+      chooseLocation: 'Choose Location',
       selectDistrict: 'Select District',
       selectTaluka: 'Select Taluka',
       vendorLogin: 'Vendor Login',
@@ -195,6 +239,18 @@ export const dictionaries = {
       light: 'Light',
       dark: 'Dark',
       system: 'System',
+    },
+    locationDetection: {
+      useMyLocation: 'Use My Location',
+      locating: 'Finding your location...',
+      locationSelected: 'Nearest supported taluka selected:',
+      privacyNote: 'Your location is used only in this browser to select a taluka.',
+      unavailable: 'Location is not available in this browser. Please select a taluka manually.',
+      permissionDenied: 'Location permission was not granted. Please select a taluka manually.',
+      positionUnavailable: 'Your location could not be determined. Please select a taluka manually.',
+      timeout: 'Location took too long to load. Try again or select a taluka manually.',
+      lowAccuracy: 'Your location is not accurate enough. Try again or select a taluka manually.',
+      noConfidentMatch: 'We could not confidently identify a nearby taluka. Please select a taluka manually.',
     },
     directory: {
       breadcrumbsHome: 'Home',
@@ -238,6 +294,22 @@ export const dictionaries = {
       joinSectionDesc: 'Get discovered by local customers in your taluka. List your business on Aheka for just ₹999/year. Receive direct calls and WhatsApp leads.',
       joinCtaButton: 'List Your Service',
       whatsappPrefill: 'Hello, I found your profile on Aheka and would like to inquire about your services.',
+    },
+    contactPage: {
+      badge: 'Customer Help',
+      title: 'Need help finding a local service?',
+      description: 'Contact our team directly if you need help choosing a service, a location, or a provider.',
+      callTitle: 'Call Us',
+      callDescription: 'Speak with us for quick help.',
+      whatsappTitle: 'Send a WhatsApp Message',
+      whatsappDescription: 'Tell us what you need and we will respond as soon as possible.',
+      emailTitle: 'Email Us',
+      emailDescription: 'For general questions or partnerships.',
+      helpTitle: 'Find it yourself',
+      helpDescription: 'Browse services or choose your location to find nearby providers.',
+      browseServices: 'Browse Services',
+      chooseLocation: 'Choose Location',
+      listService: 'List Your Service',
     },
     join: {
       title: 'Join Aheka as a Service Provider',

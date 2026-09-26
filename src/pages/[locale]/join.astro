@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../lib/i18n';
 import { getDataRepository } from '../../lib/repositories/dataRepository';
+import { getRuntimeConfig } from '../../lib/runtime/config';
 
 const { locale } = Astro.params;
 if (!locale || !isValidLocale(locale)) {
@@ -16,9 +17,10 @@ const repo = getDataRepository();
 const districts = await repo.getDistricts();
 const talukas = await repo.getTalukas();
 const categories = await repo.getCategories();
+const turnstileSiteKey = getRuntimeConfig('PUBLIC_TURNSTILE_SITE_KEY');
 
 const pageTitle = isMr
-  ? 'Aheka वर नोंदणी करा — स्थानिक सेवा प्रदात्यांसाठी | ₹९९९/वर्ष'
+  ? 'आहे का? वर नोंदणी करा — स्थानिक सेवा प्रदात्यांसाठी | ₹९९९/वर्ष'
   : 'Join Aheka — Register as a Local Service Provider | ₹999/year';
 
 const pageDesc = isMr
@@ -50,15 +52,15 @@ const pageDesc = isMr
       <!-- Key Value Propositions -->
       <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
         <div class="bg-white p-3.5 rounded-xl border border-surface-border text-center shadow-2xs">
-          <div class="text-lg font-bold text-brand-600">₹९९९ / वर्ष</div>
+          <div class="text-lg font-bold text-brand-600">{isMr ? '₹९९९ / वर्ष' : '₹999 / year'}</div>
           <div class="text-xs text-ink-muted mt-0.5">{isMr ? 'कमीशन नाही, फिक्स फी' : 'Zero commission'}</div>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-surface-border text-center shadow-2xs">
-          <div class="text-lg font-bold text-brand-600">१० जागा मर्यादा</div>
+          <div class="text-lg font-bold text-brand-600">{isMr ? '१० जागा मर्यादा' : '10-slot limit'}</div>
           <div class="text-xs text-ink-muted mt-0.5">{isMr ? 'वाजवी दृश्यमानता' : 'Fair 10 slots per service'}</div>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-surface-border text-center shadow-2xs">
-          <div class="text-lg font-bold text-brand-600">थेट ग्राहक संपर्क</div>
+          <div class="text-lg font-bold text-brand-600">{isMr ? 'थेट ग्राहक संपर्क' : 'Direct customer contact'}</div>
           <div class="text-xs text-ink-muted mt-0.5">{isMr ? 'थेट कॉल व व्हॉट्सॲप' : 'Direct Call & WhatsApp'}</div>
         </div>
       </div>
@@ -311,6 +313,12 @@ const pageDesc = isMr
           </label>
         </div>
 
+        {turnstileSiteKey && (
+          <div class="flex justify-center" aria-label="Spam protection">
+            <div class="cf-turnstile" data-sitekey={turnstileSiteKey}></div>
+          </div>
+        )}
+
         <!-- Error Alert Container -->
         <div id="form-error" class="hidden p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium"></div>
 
@@ -360,6 +368,8 @@ const pageDesc = isMr
 
   </div>
 </BaseLayout>
+
+{turnstileSiteKey && <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
 
 <script is:inline define:vars={{ talukas, isMr }}>
   // Cascading District -> Taluka dropdown logic
@@ -472,8 +482,10 @@ const pageDesc = isMr
       service_areas_text: formData.get('service_areas_text'),
       google_maps_url: formData.get('google_maps_url') || null,
       image_path: uploadedImageBase64 || null,
+      turnstile_token: document.querySelector('[name="cf-turnstile-response"]')?.value || null,
       consent_agreed: formData.get('consent_agreed') === 'on',
       website_honeypot: formData.get('website_honeypot') || null,
+      locale: isMr ? 'mr' : 'en',
     };
 
     submitBtn.disabled = true;

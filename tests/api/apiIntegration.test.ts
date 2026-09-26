@@ -8,13 +8,23 @@ import { POST as manageCategory } from '../../src/pages/api/internal-admin/manag
 import { POST as manageLocation } from '../../src/pages/api/internal-admin/manage-location';
 import { getDataRepository } from '../../src/lib/repositories/dataRepository';
 import { adminLoginRateLimiter } from '../../src/lib/security/rateLimiter';
+import { ADMIN_SESSION_COOKIE, createAdminSession } from '../../src/lib/security/adminSession';
 
 describe('API & End-to-End Workflow Tests', () => {
   let repo = getDataRepository();
 
   beforeEach(() => {
     repo = getDataRepository();
+    process.env.ADMIN_PASSWORD = 'test-admin-password';
+    process.env.ADMIN_SESSION_SECRET = 'test-admin-session-secret-with-sufficient-length';
   });
+
+  async function authenticatedCookies() {
+    const session = await createAdminSession();
+    return {
+      get: (key: string) => ({ value: key === ADMIN_SESSION_COOKIE ? session.token : undefined }),
+    };
+  }
 
   it('submits a new provider application with phone normalization and validation', async () => {
     const districts = await repo.getDistricts();
@@ -88,23 +98,18 @@ describe('API & End-to-End Workflow Tests', () => {
     const req = new Request('http://localhost/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: 'aheka-admin-2026' }),
+      body: JSON.stringify({ password: 'test-admin-password' }),
     });
 
     const res = await adminLogin({ request: req, cookies: mockCookies } as any);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
-    expect(cookiesSet['aheka_admin_token']).toBe('admin-session-token-valid');
+    expect(cookiesSet[ADMIN_SESSION_COOKIE]).toBeDefined();
   });
 
   it('enforces 10-slot limit during listing activation', async () => {
-    const cookiesSet: Record<string, string> = {
-      aheka_admin_token: 'admin-session-token-valid',
-    };
-    const mockCookies = {
-      get: (key: string) => ({ value: cookiesSet[key] }),
-    };
+    const mockCookies = await authenticatedCookies();
 
     const vendors = await repo.getAdminVendors();
     const vendorWithListing = vendors[0];
@@ -208,9 +213,7 @@ describe('API & End-to-End Workflow Tests', () => {
   });
 
   it('starts 30-day free trial via admin API for unpaid listing', async () => {
-    const mockCookies = {
-      get: (key: string) => ({ value: key === 'aheka_admin_token' ? 'admin-session-token-valid' : undefined }),
-    };
+    const mockCookies = await authenticatedCookies();
 
     const { POST: startTrial } = await import('../../src/pages/api/internal-admin/start-trial');
     const req = new Request('http://localhost/api/internal-admin/start-trial', {
@@ -230,9 +233,7 @@ describe('API & End-to-End Workflow Tests', () => {
   });
 
   it('generates performance report and bilingual WhatsApp messages via admin API', async () => {
-    const mockCookies = {
-      get: (key: string) => ({ value: key === 'aheka_admin_token' ? 'admin-session-token-valid' : undefined }),
-    };
+    const mockCookies = await authenticatedCookies();
 
     const { POST: getReport } = await import('../../src/pages/api/internal-admin/report');
     const req = new Request('http://localhost/api/internal-admin/report', {
@@ -295,9 +296,7 @@ describe('API & End-to-End Workflow Tests', () => {
   });
 
   it('allows admin to manage categories and locations via internal API', async () => {
-    const mockCookies = {
-      get: (key: string) => ({ value: key === 'aheka_admin_token' ? 'admin-session-token-valid' : undefined }),
-    };
+    const mockCookies = await authenticatedCookies();
 
     // 1. Create Category
     const catReq = new Request('http://localhost/api/internal-admin/manage-category', {

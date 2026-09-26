@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { onRequest } from '../../src/middleware';
+import { ADMIN_SESSION_COOKIE, createAdminSession } from '../../src/lib/security/adminSession';
 
 describe('Admin Security Middleware & Route Protection', () => {
-  const createMockContext = (urlStr: string, isRewrite = false) => {
+  const createMockContext = (urlStr: string, isRewrite = false, sessionToken?: string) => {
     const url = new URL(urlStr);
     const rewrittenUrls: URL[] = [];
 
@@ -13,6 +14,9 @@ describe('Admin Security Middleware & Route Protection', () => {
         locals: {
           _isInternalAdminRewrite: isRewrite,
         } as any,
+        cookies: {
+          get: (name: string) => name === ADMIN_SESSION_COOKIE && sessionToken ? { value: sessionToken } : undefined,
+        },
         rewrite: (targetUrl: URL) => {
           rewrittenUrls.push(targetUrl);
           return new Response(`Rewritten to ${targetUrl.pathname}`, { status: 200 });
@@ -70,8 +74,11 @@ describe('Admin Security Middleware & Route Protection', () => {
 
   it('rewrites configured private ADMIN_ENTRY_PATH to internal admin handlers without redirection', async () => {
     process.env.ADMIN_ENTRY_PATH = 'manage-aheka-x7k92p';
+    process.env.ADMIN_PASSWORD = 'test-admin-password';
+    process.env.ADMIN_SESSION_SECRET = 'test-admin-session-secret-with-sufficient-length';
+    const session = await createAdminSession();
 
-    const { context, rewrittenUrls } = createMockContext('https://aheka.in/manage-aheka-x7k92p');
+    const { context, rewrittenUrls } = createMockContext('https://aheka.in/manage-aheka-x7k92p', false, session.token);
     const res = await (onRequest as any)(context, nextStub);
 
     expect(res.status).toBe(200);
@@ -80,7 +87,7 @@ describe('Admin Security Middleware & Route Protection', () => {
     expect(context.locals._isInternalAdminRewrite).toBe(true);
 
     // Subpath rewrite
-    const sub = createMockContext('https://aheka.in/manage-aheka-x7k92p/vendors');
+    const sub = createMockContext('https://aheka.in/manage-aheka-x7k92p/vendors', false, session.token);
     const subRes = await (onRequest as any)(sub.context, nextStub);
     expect(subRes.status).toBe(200);
     expect(sub.rewrittenUrls[0]?.pathname).toBe('/internal-admin/vendors');

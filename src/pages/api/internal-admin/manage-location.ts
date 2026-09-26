@@ -1,9 +1,33 @@
 import type { APIRoute } from 'astro';
 import { getDataRepository } from '../../../lib/repositories/dataRepository';
+import { hasValidAdminSession } from '../../../lib/security/adminSession';
+
+function parseOptionalNumber(value: unknown, label: string, minimum: number, maximum: number): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${label} must be between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
+function parseTalukaLocation(data: Record<string, unknown>) {
+  const latitude = parseOptionalNumber(data.center_latitude, 'Taluka centre latitude', -90, 90);
+  const longitude = parseOptionalNumber(data.center_longitude, 'Taluka centre longitude', -180, 180);
+  if ((latitude === null) !== (longitude === null)) {
+    throw new Error('Enter both taluka centre latitude and longitude, or leave both blank');
+  }
+
+  const radius = parseOptionalNumber(data.location_detection_radius_km, 'Detection radius', 1, 100);
+  return {
+    center_latitude: latitude,
+    center_longitude: longitude,
+    ...(radius === null ? {} : { location_detection_radius_km: radius }),
+  };
+}
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  const adminToken = cookies.get('aheka_admin_token')?.value;
-  if (!adminToken) {
+  if (!(await hasValidAdminSession(cookies))) {
     return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -51,6 +75,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     if (type === 'taluka') {
       if (action === 'create') {
+        const location = parseTalukaLocation(data);
         const created = await repo.addTaluka({
           district_id: data.district_id,
           name_en: data.name_en,
@@ -59,6 +84,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
           is_featured: data.is_featured !== undefined ? Boolean(data.is_featured) : false,
           sort_order: Number(data.sort_order) || 0,
+          ...location,
         });
         return new Response(JSON.stringify({ success: true, taluka: created }), {
           status: 200,
@@ -76,6 +102,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         if (data.is_active !== undefined) updates.is_active = Boolean(data.is_active);
         if (data.is_featured !== undefined) updates.is_featured = Boolean(data.is_featured);
         if (data.sort_order !== undefined) updates.sort_order = Number(data.sort_order);
+        if (data.center_latitude !== undefined || data.center_longitude !== undefined) {
+          const location = parseTalukaLocation({
+            center_latitude: data.center_latitude,
+            center_longitude: data.center_longitude,
+          });
+          updates.center_latitude = location.center_latitude;
+          updates.center_longitude = location.center_longitude;
+        }
+        if (data.location_detection_radius_km !== undefined) {
+          const radius = parseOptionalNumber(data.location_detection_radius_km, 'Detection radius', 1, 100);
+          if (radius !== null) updates.location_detection_radius_km = radius;
+        }
 
         const result = await repo.updateTaluka(id, updates);
         return new Response(JSON.stringify(result), {

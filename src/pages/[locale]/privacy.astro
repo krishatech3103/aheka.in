@@ -10,7 +10,7 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const isMr = safeLocale === 'mr';
 
-const pageTitle = isMr ? 'गोपनीयता धोरण (Privacy Policy) | Aheka' : 'Privacy Policy | Aheka';
+const pageTitle = isMr ? 'गोपनीयता धोरण | आहे का?' : 'Privacy Policy | Aheka';
 const pageDesc = isMr
   ? 'Aheka वर तुमची माहिती कशी सुरक्षित ठेवली जाते याबद्दल माहिती.'
   : 'Learn how Aheka collects, uses and protects customer and service provider data.';
@@ -25,7 +25,7 @@ const pageDesc = isMr
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
     <div class="bg-white rounded-3xl border border-surface-border p-6 sm:p-12 shadow-soft space-y-6 text-ink-secondary text-sm sm:text-base leading-relaxed">
       <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight">
-        {isMr ? 'गोपनीयता धोरण (Privacy Policy)' : 'Privacy Policy'}
+        {isMr ? 'गोपनीयता धोरण' : 'Privacy Policy'}
       </h1>
       <p class="text-xs text-ink-muted">
         {isMr ? 'शेवटचे अद्यतन: ७ सप्टेंबर २०२६' : 'Last updated: September 7, 2026'}

@@ -1,6 +1,6 @@
 import React, { useState, useId } from 'react';
 import { Search, MapPin, ArrowRight, ChevronDown } from 'lucide-react';
-import type { Locale } from '../lib/i18n';
+import { getDictionary, type Locale } from '../lib/i18n';
 
 interface SearchCategory {
   slug: string;
@@ -43,6 +43,7 @@ export default function SearchIsland({
   const inputId = useId();
 
   const isMr = locale === 'mr';
+  const locationLabels = getDictionary(locale).locationDetection;
 
   const cleanQuery = query.toLowerCase().trim();
   const filteredCategories = cleanQuery
@@ -102,13 +103,19 @@ export default function SearchIsland({
                 <option value="">{isMr ? 'तालुका उपलब्ध नाही' : 'No talukas available'}</option>
               ) : (
                 talukas.map((t) => (
-                  <option
-                    key={t.slug}
-                    value={t.slug}
-                    className="bg-white dark:bg-ink-surface text-ink-primary font-medium"
-                  >
-                    {isMr ? t.name_mr : t.name_en} {t.district_name_mr || t.district_name_en ? `(${isMr ? t.district_name_mr : t.district_name_en})` : ''}
-                  </option>
+                  (() => {
+                    const districtName = isMr ? t.district_name_mr : t.district_name_en;
+                    const talukaName = isMr ? t.name_mr : t.name_en;
+                    return (
+                      <option
+                        key={t.slug}
+                        value={t.slug}
+                        className="bg-white dark:bg-ink-surface text-ink-primary font-medium"
+                      >
+                        {districtName ? `${talukaName} (${districtName})` : talukaName}
+                      </option>
+                    );
+                  })()
                 ))
               )}
             </select>
@@ -149,6 +156,15 @@ export default function SearchIsland({
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => (document.getElementById('location-dialog') as HTMLDialogElement | null)?.showModal()}
+        className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/50 border border-brand-200 dark:border-brand-800 hover:bg-brand-100 dark:hover:bg-brand-950 transition-colors"
+      >
+        <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
+        <span>{locationLabels.useMyLocation}</span>
+      </button>
+
       {/* Instant Suggestions Dropdown */}
       {filteredCategories.length > 0 && activeTaluka && (
         <div
@@ -174,7 +190,9 @@ export default function SearchIsland({
                     {isMr ? cat.name_mr : cat.name_en}
                   </div>
                   <div className="text-xs text-ink-muted mt-0.5">
-                    {isMr ? cat.name_en : cat.name_mr} • <span className="text-brand-700 dark:text-brand-400 font-medium">{isMr ? activeTaluka.name_mr : activeTaluka.name_en}</span>
+                    <span className="text-brand-700 dark:text-brand-400 font-medium">
+                      {isMr ? activeTaluka.name_mr : activeTaluka.name_en}
+                    </span>
                   </div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-brand-600 group-hover:translate-x-1 transition-transform" />

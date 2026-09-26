@@ -1,7 +1,8 @@
 ---
-import { getDictionary, type Locale } from '../lib/i18n';
+import { getDictionary, getLocalizedText, type Locale } from '../lib/i18n';
 import type { RotatedProviderItem } from '../lib/types/database';
 import ShareButton from './ShareButton';
+import { getSiteUrl } from '../lib/runtime/config';
 
 interface Props {
   provider: RotatedProviderItem;
@@ -13,6 +14,11 @@ interface Props {
 const { provider, locale, categoryName, talukaName } = Astro.props;
 const dict = getDictionary(locale);
 const isMr = locale === 'mr';
+const siteUrl = getSiteUrl(Astro.url.origin);
+const localizedDescription = getLocalizedText(locale, provider.description_en, provider.description_mr);
+const shareText = isMr
+  ? `${dict.actions.sharePrompt} ${provider.provider_name} (${categoryName}), ${talukaName} येथे.`
+  : `${dict.actions.sharePrompt} ${provider.provider_name} (${categoryName}) in ${talukaName}.`;
 
 // Clean phone for tel: link
 const telHref = `tel:${provider.mobile}`;
@@ -20,7 +26,7 @@ const telHref = `tel:${provider.mobile}`;
 // WhatsApp link with friendly prefilled localized greeting
 const waText = encodeURIComponent(
   isMr
-    ? `नमस्कार ${provider.provider_name}, मी Aheka (aheka.in) वर तुमची माहिती पाहिली. मला ${categoryName} कामाबद्दल चौकशी करायची आहे.`
+    ? `नमस्कार ${provider.provider_name}, मी तुमची प्रोफाइल पाहिली. मला ${categoryName} कामाबद्दल चौकशी करायची आहे.`
     : `Hello ${provider.provider_name}, I found your profile on Aheka (aheka.in). I would like to inquire about ${categoryName} service.`
 );
 const waNumberClean = provider.whatsapp_number
@@ -35,7 +41,7 @@ const initials = provider.provider_name
   .map(n => n.charAt(0))
   .join('');
 
-const providerUrl = `https://aheka.in/${locale}/provider/${provider.slug}`;
+const providerUrl = `${siteUrl}/${locale}/provider/${provider.slug}`;
 ---
 
 <div class="bg-white dark:bg-ink-surface rounded-2xl border border-surface-border p-5 sm:p-6 shadow-soft hover:shadow-lift transition-all duration-200 flex flex-col justify-between group">
@@ -115,9 +121,9 @@ const providerUrl = `https://aheka.in/${locale}/provider/${provider.slug}`;
     </div>
 
     <!-- Description Snippet -->
-    {(provider.description_mr || provider.description_en) && (
+    {localizedDescription && (
       <p class="mt-3.5 text-xs sm:text-sm text-ink-secondary line-clamp-2 leading-relaxed">
-        {isMr ? (provider.description_mr || provider.description_en) : (provider.description_en || provider.description_mr)}
+        {localizedDescription}
       </p>
     )}
   </div>
@@ -173,7 +179,7 @@ const providerUrl = `https://aheka.in/${locale}/provider/${provider.slug}`;
       <ShareButton
         client:idle
         title={`${provider.provider_name} - ${provider.business_name || categoryName}`}
-        text={`${dict.actions.sharePrompt} ${provider.provider_name} (${categoryName}) in ${talukaName}.`}
+        text={shareText}
         url={providerUrl}
         locale={locale}
       />
@@ -206,6 +212,7 @@ const providerUrl = `https://aheka.in/${locale}/provider/${provider.slug}`;
             vendor_id: vendorId,
             event_type: action,
             page_path: window.location.pathname,
+            locale: window.location.pathname.split('/')[1] === 'mr' ? 'mr' : 'en',
           }),
         }).catch(() => {});
       }

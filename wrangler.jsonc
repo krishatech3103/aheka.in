@@ -11,6 +11,7 @@
     "directory": "./dist"
   },
   "vars": {
+    "APP_ENVIRONMENT": "production",
     "SITE_URL": "https://aheka.in",
     "PUBLIC_SUPABASE_URL": "https://your-project.supabase.co",
     "PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",

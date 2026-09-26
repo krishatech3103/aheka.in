@@ -10,7 +10,7 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const isMr = safeLocale === 'mr';
 
-const pageTitle = isMr ? 'सेवा प्रदाता अटी (Provider Terms) | Aheka' : 'Service Provider Terms | Aheka';
+const pageTitle = isMr ? 'सेवा प्रदाता अटी | आहे का?' : 'Service Provider Terms | Aheka';
 const pageDesc = isMr
   ? 'Aheka वर नाव नोंदवणाऱ्या कारागीर आणि व्यावसायिकांसाठी वर्गणी, नियम व अटी.'
   : 'Subscription policies, 10-slot limit rules, and fair rotation terms for registered providers.';
@@ -28,7 +28,7 @@ const pageDesc = isMr
         {isMr ? 'कारागीर व व्यावसायिक नियमावली' : 'Vendor Operating Policy'}
       </span>
       <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight">
-        {isMr ? 'सेवा प्रदाता अटी (Provider Terms)' : 'Provider Subscription & Listing Terms'}
+        {isMr ? 'सेवा प्रदाता अटी' : 'Provider Subscription & Listing Terms'}
       </h1>
       <p class="text-xs text-ink-muted">
         {isMr ? 'शेवटचे अद्यतन: ७ सप्टेंबर २०२६' : 'Last updated: September 7, 2026'}
@@ -40,36 +40,36 @@ const pageDesc = isMr
         </h2>
         <p>
           {isMr
-            ? 'Aheka वरील प्रत्येक सेवेसाठी वार्षिक वर्गणी ₹९९९ (किंवा त्यावेळचे अधिकृत शुल्क) आहे. वर्गणी ३६५ दिवसांसाठी वैध राहते. सक्रिय झाल्यानंतर वर्गणीचा परतावा (refund) दिला जात नाही.'
+            ? 'प्रत्येक सेवेसाठी वार्षिक वर्गणी ₹९९९ (किंवा त्यावेळचे अधिकृत शुल्क) आहे. वर्गणी ३६५ दिवसांसाठी वैध राहते. सक्रिय झाल्यानंतर वर्गणीचा परतावा दिला जात नाही.'
             : 'The annual listing subscription is ₹999 per service category per taluka, valid for 365 calendar days. Subscriptions are non-refundable once activated.'}
         </p>
       </section>
 
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-ink-primary">
-          {isMr ? '२. १० जागांची वाजवी मर्यादा (Slot Limits)' : '2. 10-Slot Limit Policy'}
+          {isMr ? '२. १० जागांची वाजवी मर्यादा' : '2. 10-Slot Limit Policy'}
         </h2>
         <p>
           {isMr
-            ? 'प्रत्येक तालुक्यात प्रत्येक सेवेसाठी जास्तीत जास्त १० सक्रिय जागा असतात. १० जागा पूर्ण असल्यास नवीन अर्जदारांना प्रतीक्षा यादीत (Waitlist) ठेवले जाते. जागा रिकामी झाल्यावर प्रतीक्षा यादीनुसार संधी दिली जाते.'
+            ? 'प्रत्येक तालुक्यात प्रत्येक सेवेसाठी जास्तीत जास्त १० सक्रिय जागा असतात. १० जागा पूर्ण असल्यास नवीन अर्जदारांना प्रतीक्षा यादीत ठेवले जाते. जागा रिकामी झाल्यावर प्रतीक्षा यादीनुसार संधी दिली जाते.'
             : 'Each taluka enforces a strict maximum of 10 active listings per category. When 10 slots are full, approved applicants are placed on a transparent waitlist and activated in order as existing subscriptions expire.'}
         </p>
       </section>
 
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-ink-primary">
-          {isMr ? '३. पारदर्शक दैनिक फेरबदल (Daily Fair Rotation)' : '3. Deterministic Daily Fair Rotation'}
+          {isMr ? '३. पारदर्शक दैनिक फेरबदल' : '3. Deterministic Daily Fair Rotation'}
         </h2>
         <p>
           {isMr
-            ? 'सर्व १० कारागिरांना समान ग्राहक मिळावेत यासाठी दररोज रात्री १२:०० वाजता (IST) यादीतील क्रम संगणकीय नियमाने बदलला जातो. कोणताही कारागीर पैसे देऊन प्रथम क्रमांकाची जागा विकत घेऊ शकत नाही.'
+            ? 'सर्व १० कारागिरांना समान ग्राहक मिळावेत यासाठी दररोज रात्री १२:०० वाजता भारतीय प्रमाणवेळेनुसार यादीतील क्रम संगणकीय नियमाने बदलला जातो. कोणताही कारागीर पैसे देऊन प्रथम क्रमांकाची जागा विकत घेऊ शकत नाही.'
             : 'All 10 providers in a taluka rotate daily at midnight IST to guarantee equal visibility. Paid sponsorship or paying extra to stay at the top is strictly prohibited.'}
         </p>
       </section>
 
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-ink-primary">
-          {isMr ? '४. एक फोटो धोरण (Single Image Policy)' : '4. Single Image Policy'}
+          {isMr ? '४. एक फोटो धोरण' : '4. Single Image Policy'}
         </h2>
         <p>
           {isMr

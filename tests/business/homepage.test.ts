@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { getDictionary } from '../../src/lib/i18n';
+import { DEFAULT_LOCALE, getDictionary, getLocalizedText } from '../../src/lib/i18n';
 import { getDataRepository } from '../../src/lib/repositories/dataRepository';
 
 describe('Homepage Polish & Localization Tests', () => {
+  it('uses English as the default locale and never falls back to the other language', () => {
+    expect(DEFAULT_LOCALE).toBe('en');
+    expect(getDictionary()).toBe(getDictionary('en'));
+    expect(getLocalizedText('en', 'Electrician', 'इलेक्ट्रिशियन')).toBe('Electrician');
+    expect(getLocalizedText('mr', 'Electrician', 'इलेक्ट्रिशियन')).toBe('इलेक्ट्रिशियन');
+    expect(getLocalizedText('en', null, 'इलेक्ट्रिशियन')).toBe('');
+    expect(getLocalizedText('mr', 'Electrician', null)).toBe('');
+  });
+
   it('provides 100% natural Marathi public copy for /mr route without English residue', () => {
     const dict = getDictionary('mr');
 
@@ -10,7 +19,7 @@ describe('Homepage Polish & Localization Tests', () => {
     expect(dict.brand.name).toBe('Aheka');
     expect(dict.brand.devanagariName).toBe('आहे का?');
     expect(dict.brand.tagline).toBe('स्थानिक सेवा शोध');
-    expect(dict.nav.join).toBe('Aheka वर सेवा नोंदवा');
+    expect(dict.nav.join).toBe('आहे का? वर सेवा नोंदवा');
     expect(dict.nav.vendorLogin).toBe('सेवा प्रदाता लॉगिन');
 
     // Hero Section
@@ -29,7 +38,7 @@ describe('Homepage Polish & Localization Tests', () => {
     expect(dict.home.viewAllServices).toBe('सर्व सेवा प्रकार पहा');
 
     // How It Works Steps
-    expect(dict.home.howItWorksTitle).toBe('Aheka कसे कार्य करते?');
+    expect(dict.home.howItWorksTitle).toBe('हे व्यासपीठ कसे कार्य करते?');
     expect(dict.home.step1Title).toBe('१. तालुका निवडा');
     expect(dict.home.step2Title).toBe('२. हवी असलेली सेवा निवडा');
     expect(dict.home.step3Title).toBe('३. थेट कॉल किंवा व्हॉट्सॲप करा');
@@ -37,7 +46,7 @@ describe('Homepage Polish & Localization Tests', () => {
     // Provider Onboarding Section
     expect(dict.home.joinSectionBadge).toBe('स्थानिक कारागीर व व्यावसायिकांसाठी');
     expect(dict.home.joinSectionTitle).toBe('तुम्ही स्थानिक सेवा प्रदाता आहात का?');
-    expect(dict.home.joinCtaButton).toBe('Aheka वर सेवा नोंदवा');
+    expect(dict.home.joinCtaButton).toBe('आहे का? वर सेवा नोंदवा');
   });
 
   it('provides polished English copy for /en route', () => {

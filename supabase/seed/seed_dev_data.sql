@@ -14,14 +14,17 @@ BEGIN
     is_featured = EXCLUDED.is_featured;
 
   -- 2. Talukas
-  INSERT INTO talukas (id, district_id, name_en, name_mr, slug, is_active, is_featured, sort_order)
+  INSERT INTO talukas (id, district_id, name_en, name_mr, slug, is_active, is_featured, sort_order, center_latitude, center_longitude, location_detection_radius_km)
   VALUES
-    ('t1111111-1111-1111-1111-111111111111', 'd1111111-1111-1111-1111-111111111111', 'Sangamner', 'संगमनेर', 'sangamner', true, true, 1),
-    ('t2222222-2222-2222-2222-222222222222', 'd1111111-1111-1111-1111-111111111111', 'Akole', 'अकोले', 'akole', true, true, 2),
-    ('t3333333-3333-3333-3333-333333333333', 'd2222222-2222-2222-2222-222222222222', 'Haveli', 'हवेली', 'haveli', true, false, 1),
-    ('t4444444-4444-4444-4444-444444444444', 'd2222222-2222-2222-2222-222222222222', 'Baramati', 'बारामती', 'baramati', true, false, 2)
+    ('t1111111-1111-1111-1111-111111111111', 'd1111111-1111-1111-1111-111111111111', 'Sangamner', 'संगमनेर', 'sangamner', true, true, 1, 19.567840, 74.211540, 25),
+    ('t2222222-2222-2222-2222-222222222222', 'd1111111-1111-1111-1111-111111111111', 'Akole', 'अकोले', 'akole', true, true, 2, 19.540630, 74.005430, 25),
+    ('t3333333-3333-3333-3333-333333333333', 'd2222222-2222-2222-2222-222222222222', 'Haveli', 'हवेली', 'haveli', true, false, 1, 18.520430, 73.856740, 25),
+    ('t4444444-4444-4444-4444-444444444444', 'd2222222-2222-2222-2222-222222222222', 'Baramati', 'बारामती', 'baramati', true, false, 2, 18.144340, 74.576260, 25)
   ON CONFLICT (id) DO UPDATE SET
-    is_featured = EXCLUDED.is_featured;
+    is_featured = EXCLUDED.is_featured,
+    center_latitude = EXCLUDED.center_latitude,
+    center_longitude = EXCLUDED.center_longitude,
+    location_detection_radius_km = EXCLUDED.location_detection_radius_km;
 
   -- 3. Categories
   INSERT INTO categories (id, name_en, name_mr, slug, description_en, description_mr, icon_key, is_visible, is_featured, sort_order)

@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getDataRepository } from '../../../lib/repositories/dataRepository';
+import { hasValidAdminSession } from '../../../lib/security/adminSession';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  const adminToken = cookies.get('aheka_admin_token')?.value;
-  if (!adminToken) {
+  if (!(await hasValidAdminSession(cookies))) {
     return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

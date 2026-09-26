@@ -6,6 +6,7 @@ import LocationModal from '../components/LocationModal.astro';
 import ThemeInitScript from '../components/ThemeInitScript.astro';
 import { getDictionary, type Locale, DEFAULT_LOCALE } from '../lib/i18n';
 import { getDataRepository } from '../lib/repositories/dataRepository';
+import { getSiteUrl } from '../lib/runtime/config';
 
 interface Props {
   title: string;
@@ -41,7 +42,7 @@ const talukas = await repo.getTalukas();
 const categories = await repo.getCategories();
 
 // Canonical and Hreflang URLs
-const siteUrl = 'https://aheka.in';
+const siteUrl = getSiteUrl(Astro.url.origin);
 const cleanPath = canonicalPath.replace(/\/$/, '') || '';
 const canonicalUrl = `${siteUrl}${cleanPath}`;
 
@@ -59,16 +60,18 @@ const enPath = cleanPath.startsWith('/mr')
 
 const mrUrl = `${siteUrl}${mrPath}`;
 const enUrl = `${siteUrl}${enPath}`;
+const localizedBrandName = isMr ? dict.brand.devanagariName : dict.brand.name;
 
 // Default Organization JSON-LD
 const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'Aheka',
-  alternateName: 'आहे का?',
+  name: localizedBrandName,
   url: siteUrl,
   logo: `${siteUrl}/icons/icon-512.png`,
-  description: 'Hyperlocal service-provider discovery platform for Maharashtra.',
+  description: isMr
+    ? 'महाराष्ट्रातील स्थानिक सेवा प्रदाते शोधण्याचे व्यासपीठ.'
+    : 'Hyperlocal service-provider discovery platform for Maharashtra.',
   sameAs: [
     'https://www.facebook.com/aheka.in',
     'https://twitter.com/aheka_in',
@@ -101,10 +104,10 @@ const organizationSchema = {
     <!-- Hreflang Alternates -->
     <link rel="alternate" hreflang="mr" href={mrUrl} />
     <link rel="alternate" hreflang="en" href={enUrl} />
-    <link rel="alternate" hreflang="x-default" href={mrUrl} />
+    <link rel="alternate" hreflang="x-default" href={enUrl} />
 
     <!-- Open Graph / Facebook -->
-    <meta property="og:site_name" content="Aheka (आहे का?)" />
+    <meta property="og:site_name" content={localizedBrandName} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />

@@ -12,7 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
         vendor_listing_id: body.vendor_listing_id,
         event_type: body.event_type,
         page_path: body.page_path || '/',
-        locale: body.locale || 'mr',
+        locale: body.locale === 'mr' ? 'mr' : 'en',
       });
     }
 

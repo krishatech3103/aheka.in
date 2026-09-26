@@ -1,4 +1,6 @@
 ---
-// Root page redirects to default Marathi locale (/mr)
-return Astro.redirect('/mr', 302);
+import { DEFAULT_LOCALE } from '../lib/i18n';
+
+// Keep the root URL and all invalid locale redirects aligned with one default.
+return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
 ---

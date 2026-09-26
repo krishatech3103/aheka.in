@@ -1,7 +1,8 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import { getDictionary, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../../lib/i18n';
+import { getDictionary, getLocalizedText, isValidLocale, DEFAULT_LOCALE, type Locale } from '../../../../lib/i18n';
 import { getDataRepository } from '../../../../lib/repositories/dataRepository';
+import { getSiteUrl } from '../../../../lib/runtime/config';
 
 const { locale, district: districtSlug, taluka: talukaSlug } = Astro.params;
 if (!locale || !isValidLocale(locale)) {
@@ -11,6 +12,7 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
+const siteUrl = getSiteUrl(Astro.url.origin);
 
 const repo = getDataRepository();
 const taluka = await repo.getTalukaBySlugs(districtSlug || '', talukaSlug || '');
@@ -39,19 +41,19 @@ const breadcrumbSchema = {
       '@type': 'ListItem',
       position: 1,
       name: dict.directory.breadcrumbsHome,
-      item: `https://aheka.in/${safeLocale}`,
+      item: `${siteUrl}/${safeLocale}`,
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: `${districtName} ${isMr ? 'जिल्हा' : 'District'}`,
-      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}`,
+      item: `${siteUrl}/${safeLocale}/${taluka.district.slug}`,
     },
     {
       '@type': 'ListItem',
       position: 3,
       name: `${talukaName} ${isMr ? 'तालुका' : 'Taluka'}`,
-      item: `https://aheka.in/${safeLocale}/${taluka.district.slug}/${taluka.slug}`,
+      item: `${siteUrl}/${safeLocale}/${taluka.district.slug}/${taluka.slug}`,
     },
   ],
 };
@@ -119,7 +121,7 @@ const breadcrumbSchema = {
               {isMr ? cat.name_mr : cat.name_en}
             </h2>
             <p class="text-xs sm:text-sm text-ink-secondary mt-2 leading-relaxed line-clamp-2">
-              {isMr ? (cat.description_mr || cat.description_en) : (cat.description_en || cat.description_mr)}
+              {getLocalizedText(safeLocale, cat.description_en, cat.description_mr)}
             </p>
           </div>
 

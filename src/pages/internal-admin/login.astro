@@ -6,12 +6,10 @@ import LogoIcon from '../../components/LogoIcon.astro';
 
 const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
 
-const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
-if (adminToken) {
+if (Astro.locals.isAdminAuthenticated) {
   return Astro.redirect(`/${adminEntryPath}`, 302);
 }
 
-const isDev = import.meta.env.DEV;
 ---
 
 <!DOCTYPE html>
@@ -67,11 +65,6 @@ const isDev = import.meta.env.DEV;
         </button>
       </form>
 
-      {isDev && (
-        <div class="mt-6 text-center text-xs text-ink-muted">
-          Development dev key: <code class="font-mono bg-surface-muted px-1.5 py-0.5 rounded">aheka-admin-2026</code>
-        </div>
-      )}
     </div>
 
     <div id="admin-meta" data-entry-path={adminEntryPath} class="hidden"></div>

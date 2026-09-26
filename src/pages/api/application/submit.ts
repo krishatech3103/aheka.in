@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { getDataRepository } from '../../../lib/repositories/dataRepository';
 import { normalizeIndianMobile, isValidIndianMobile } from '../../../lib/business/slotEnforcement';
+import { verifyTurnstileToken } from '../../../lib/security/turnstile';
 
 const applicationSchema = z.object({
   provider_name: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -25,11 +26,15 @@ const applicationSchema = z.object({
   }),
   // Honeypot field for anti-bot
   website_honeypot: z.string().optional().nullable(),
+  turnstile_token: z.string().optional().nullable(),
+  locale: z.enum(['en', 'mr']).optional(),
 });
 
 export const POST: APIRoute = async ({ request }) => {
+  let locale: 'en' | 'mr' = 'en';
   try {
     const body = await request.json();
+    locale = body?.locale === 'mr' ? 'mr' : 'en';
 
     // Honeypot check: If bot filled the hidden honeypot, fake success silently
     if (body.website_honeypot && body.website_honeypot.trim() !== '') {
@@ -44,13 +49,28 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(
         JSON.stringify({
           success: false,
-          errors: parseResult.error.flatten().fieldErrors,
+          error: locale === 'mr'
+            ? 'कृपया सर्व आवश्यक माहिती योग्य प्रकारे भरा.'
+            : 'Please complete all required fields correctly.',
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     const data = parseResult.data;
+    const turnstile = await verifyTurnstileToken(data.turnstile_token, request);
+    if (!turnstile.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: turnstile.configurationError
+          ? (locale === 'mr' ? 'स्पॅम संरक्षणाची मांडणी केलेली नाही.' : 'Spam protection is not configured.')
+          : (locale === 'mr' ? 'तुमची पडताळणी करता आली नाही. कृपया पुन्हा प्रयत्न करा.' : 'Unable to verify that you are human. Please try again.'),
+      }), {
+        status: turnstile.configurationError ? 503 : 400,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+
     const repo = getDataRepository();
 
     const result = await repo.submitVendorApplication({
@@ -76,7 +96,12 @@ export const POST: APIRoute = async ({ request }) => {
     });
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ success: false, error: err.message || 'Internal server error' }),
+      JSON.stringify({
+        success: false,
+        error: locale === 'mr'
+          ? 'काहीतरी चूक झाली. कृपया पुन्हा प्रयत्न करा.'
+          : 'Something went wrong. Please try again.',
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

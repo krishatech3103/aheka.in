@@ -11,10 +11,28 @@ interface Props {
 const { locale, districts, talukas } = Astro.props;
 const dict = getDictionary(locale);
 const isMr = locale === 'mr';
+const locationCandidates = talukas
+  .filter((taluka) => taluka.center_latitude != null && taluka.center_longitude != null)
+  .map((taluka) => {
+    const district = districts.find((item) => item.id === taluka.district_id);
+    return {
+      slug: taluka.slug,
+      district_slug: district?.slug || '',
+      name_en: taluka.name_en,
+      name_mr: taluka.name_mr,
+      center_latitude: taluka.center_latitude,
+      center_longitude: taluka.center_longitude,
+      location_detection_radius_km: taluka.location_detection_radius_km,
+    };
+  })
+  .filter((taluka) => Boolean(taluka.district_slug));
 ---
 
 <dialog
   id="location-dialog"
+  data-locale={locale}
+  data-location-candidates={JSON.stringify(locationCandidates)}
+  data-location-labels={JSON.stringify(dict.locationDetection)}
   class="m-auto rounded-2xl p-0 shadow-2xl border border-surface-border bg-white max-w-lg w-[92vw] backdrop:bg-ink-primary/50 backdrop:backdrop-blur-xs open:animate-fade-in"
 >
   <div class="p-5 sm:p-6">
@@ -38,6 +56,26 @@ const isMr = locale === 'mr';
         </svg>
       </button>
     </div>
+
+    {locationCandidates.length > 0 && (
+      <div class="mt-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50/70 dark:bg-brand-950/30 p-3.5">
+        <button
+          id="detect-location-btn"
+          type="button"
+          class="inline-flex items-center gap-2 text-sm font-bold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 disabled:opacity-60 disabled:cursor-wait"
+          aria-describedby="detect-location-status"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.25 7-12a7 7 0 10-14 0c0 6.75 7 12 7 12z" />
+            <circle cx="12" cy="9" r="2.25" stroke-width="2" />
+          </svg>
+          <span>{dict.locationDetection.useMyLocation}</span>
+        </button>
+        <p id="detect-location-status" role="status" aria-live="polite" class="mt-1 text-[11px] leading-relaxed text-ink-muted">
+          {dict.locationDetection.privacyNote}
+        </p>
+      </div>
+    )}
 
     <!-- District & Taluka Groupings -->
     <div class="mt-4 space-y-5 max-h-[65vh] overflow-y-auto pr-1">
@@ -71,6 +109,8 @@ const isMr = locale === 'mr';
 </dialog>
 
 <script>
+  import { findNearestSupportedTaluka } from '../lib/location/nearestTaluka';
+
   // Close dialog if backdrop is clicked
   const dialog = document.getElementById('location-dialog') as HTMLDialogElement | null;
   dialog?.addEventListener('click', (event) => {
@@ -85,4 +125,80 @@ const isMr = locale === 'mr';
       dialog.close();
     }
   });
+
+  function setupLocationDetection() {
+    const locateButton = document.getElementById('detect-location-btn') as HTMLButtonElement | null;
+    const status = document.getElementById('detect-location-status');
+    if (!dialog || !locateButton || !status) return;
+
+    const candidates = JSON.parse(dialog.dataset.locationCandidates || '[]') as any[];
+    const labels = JSON.parse(dialog.dataset.locationLabels || '{}');
+    const locale = dialog.dataset.locale || 'en';
+
+    const showStatus = (message: string, isError = false) => {
+      status.textContent = message;
+      status.className = `mt-1 text-[11px] leading-relaxed ${isError
+        ? 'text-amber-700 dark:text-amber-300'
+        : 'text-ink-muted'}`;
+    };
+
+    locateButton.onclick = () => {
+      if (!navigator.geolocation) {
+        showStatus(labels.unavailable, true);
+        return;
+      }
+
+      locateButton.disabled = true;
+      locateButton.querySelector('span')!.textContent = labels.locating;
+      showStatus(labels.privacyNote);
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (!Number.isFinite(position.coords.accuracy) || position.coords.accuracy > 10_000) {
+            showStatus(labels.lowAccuracy, true);
+            locateButton.disabled = false;
+            locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+            return;
+          }
+
+          const result = findNearestSupportedTaluka(
+            position.coords.latitude,
+            position.coords.longitude,
+            candidates,
+            position.coords.accuracy,
+          );
+          if (!result) {
+            showStatus(labels.noConfidentMatch, true);
+            locateButton.disabled = false;
+            locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+            return;
+          }
+
+          const talukaName = locale === 'mr' ? result.taluka.name_mr : result.taluka.name_en;
+          showStatus(`${labels.locationSelected} ${talukaName}`);
+          window.setTimeout(() => {
+            window.location.assign(`/${locale}/${result.taluka.district_slug}/${result.taluka.slug}`);
+          }, 350);
+        },
+        (error) => {
+          const message = error.code === error.PERMISSION_DENIED
+            ? labels.permissionDenied
+            : error.code === error.TIMEOUT
+            ? labels.timeout
+            : labels.positionUnavailable;
+          showStatus(message, true);
+          locateButton.disabled = false;
+          locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10_000,
+          maximumAge: 300_000,
+        },
+      );
+    };
+  }
+
+  setupLocationDetection();
+  document.addEventListener('astro:page-load', setupLocationDetection);
 </script>

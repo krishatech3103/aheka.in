@@ -35,6 +35,9 @@ export interface Taluka {
   is_active: boolean;
   is_featured?: boolean;
   sort_order: number;
+  center_latitude?: number | null;
+  center_longitude?: number | null;
+  location_detection_radius_km?: number | null;
   created_at: string;
   updated_at: string;
   district?: District;
@@ -87,6 +90,11 @@ export interface Vendor {
   admin_notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface VendorServiceArea {
+  name_en: string;
+  name_mr: string;
 }
 
 export type TrialStatus = 'active' | 'expired' | 'converted' | 'cancelled';

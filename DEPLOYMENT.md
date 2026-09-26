@@ -23,7 +23,7 @@ This document covers deployment, environment configuration, secret management, d
 | `ADMIN_ENTRY_PATH` | Server-only | Yes | Unguessable admin path slug (e.g. `manage-aheka-x7k92p` in prod, `local-admin` in dev) |
 | `ADMIN_PASSWORD` | Server-only | Yes | Super Admin authentication password |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | Yes | Supabase service role key for privileged admin operations |
-| `JWT_SECRET` | Server-only | Yes | High-entropy secret for admin session tokens |
+| `ADMIN_SESSION_SECRET` | Server-only | Yes | High-entropy secret for signed, 8-hour admin sessions |
 | `TURNSTILE_SECRET_KEY` | Server-only | Yes | Cloudflare Turnstile bot verification secret |
 | `PUBLIC_SUPABASE_URL` | Public / Edge | No | Public Supabase API project endpoint |
 | `PUBLIC_SUPABASE_ANON_KEY` | Public / Edge | No | Supabase anon key (restricted by RLS) |
@@ -45,7 +45,7 @@ This document covers deployment, environment configuration, secret management, d
    PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   JWT_SECRET=local-dev-secret-key-at-least-32-chars
+   ADMIN_SESSION_SECRET=local-dev-secret-key-at-least-32-chars
    PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
    TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
    ```
@@ -81,16 +81,18 @@ npx wrangler secret put ADMIN_PASSWORD
 # 3. Set Supabase Service Role Key
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 
-# 4. Set Session JWT Secret
-npx wrangler secret put JWT_SECRET
+# 4. Set Admin Session Secret
+npx wrangler secret put ADMIN_SESSION_SECRET
 
 # 5. Set Turnstile Bot Verification Secret
 npx wrangler secret put TURNSTILE_SECRET_KEY
 
-# 6. Set Supabase Public URL & Anon Key
-npx wrangler secret put PUBLIC_SUPABASE_URL
-npx wrangler secret put PUBLIC_SUPABASE_ANON_KEY
 ```
+
+Set `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`,
+`PUBLIC_TURNSTILE_SITE_KEY`, and `APP_ENVIRONMENT=production` as non-secret
+`vars` in `wrangler.jsonc`. Replace the placeholder Supabase and Turnstile
+values before deployment. Never store the service-role key in `vars`.
 
 ### 4.2 How `ADMIN_ENTRY_PATH` Operates in Production
 - If `ADMIN_ENTRY_PATH=manage-aheka-x7k92p`, the entry route will be `https://aheka.in/manage-aheka-x7k92p`.
@@ -117,6 +119,7 @@ Run database migrations sequentially in the Supabase SQL Editor:
 5. `supabase/migrations/005_seed_dev_data.sql` — Safe no-op in production.
 6. `supabase/migrations/006_phase2_trials_and_reports.sql` — `listing_trials`, `vendor_report_snapshots`.
 7. `supabase/migrations/007_featured_and_private_admin.sql` — `is_featured` columns and indexes on categories and talukas.
+8. `supabase/migrations/008_indexable_directory_routes.sql` — Sitemap query restricted to indexable directory pages.
 
 ### 5.1 Dev Seed vs. Production Zero-Seed Policy
 - **Production Database**: Starts completely clean with zero pre-seeded records. All categories, districts, talukas, and vendors are created via the Super Admin panel.
@@ -152,7 +155,7 @@ npx wrangler deploy
 1. [ ] **Probing Check**: Navigate to `https://aheka.in/admin` and `https://aheka.in/admin/login`. Verify both return HTTP 404.
 2. [ ] **Public Links Check**: Inspect Homepage, Header, Footer, and Navigation. Verify zero "Admin" links exist.
 3. [ ] **SEO Check**: Inspect `https://aheka.in/robots.txt` and `https://aheka.in/sitemap.xml`. Verify secret admin path does NOT appear.
-4. [ ] **Private Entry Check**: Navigate to `https://aheka.in/{ADMIN_ENTRY_PATH}`. Verify the secure login form loads.
+4. [ ] **Private Entry Check**: Navigate to `https://aheka.in/{ADMIN_ENTRY_PATH}`. Verify the secure login form loads, a forged cookie is rejected, and the signed session expires after eight hours.
 5. [ ] **Rate Limiting Check**: Attempt 5 incorrect logins. Verify 6th attempt returns HTTP 429 Too Many Requests.
 6. [ ] **Super Admin Login Check**: Log in with valid credentials. Verify access to Vendors, Categories, Locations, and Payments.
 7. [ ] **Dynamic Directory Check**: Create a Category and Location in Admin. Verify they appear on the public website without redeploying.

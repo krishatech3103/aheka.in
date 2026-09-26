@@ -1,5 +1,12 @@
 import type { APIRoute } from 'astro';
 import { getClientIp, checkAdminRateLimit, recordFailedLogin, resetFailedLogins } from '../../../lib/security/rateLimiter';
+import {
+  ADMIN_SESSION_COOKIE,
+  createAdminSession,
+  isSecureCookieRuntime,
+  secureValueMatches,
+} from '../../../lib/security/adminSession';
+import { getRuntimeConfig } from '../../../lib/runtime/config';
 
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const ip = getClientIp(request);
@@ -19,10 +26,20 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   try {
     const { password } = await request.json();
 
-    // Default admin password for local dev / staging or from server env
-    const expectedPassword = process.env.ADMIN_PASSWORD || 'aheka-admin-2026';
+    const expectedPassword = getRuntimeConfig('ADMIN_PASSWORD');
+    const sessionSecret = getRuntimeConfig('ADMIN_SESSION_SECRET');
 
-    if (!password || password !== expectedPassword) {
+    if (!expectedPassword || !sessionSecret) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Admin authentication is not configured.',
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+
+    if (!password || typeof password !== 'string' || !(await secureValueMatches(password, expectedPassword))) {
       const record = recordFailedLogin(ip);
       const remainingMsg = record.isLocked
         ? 'Account temporarily locked due to repeated failed attempts. Please wait 15 minutes.'
@@ -37,16 +54,16 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     // Reset rate limit on successful authentication
     resetFailedLogins(ip);
 
-    const isProd = import.meta.env.PROD || process.env.NODE_ENV === 'production';
-    cookies.set('aheka_admin_token', 'admin-session-token-valid', {
+    const session = await createAdminSession();
+    cookies.set(ADMIN_SESSION_COOKIE, session.token, {
       path: '/',
       httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      secure: isSecureCookieRuntime(),
+      sameSite: 'strict',
+      maxAge: session.maxAge,
     });
 
-    const adminEntryPath = locals?.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
+    const adminEntryPath = locals?.adminEntryPath || getRuntimeConfig('ADMIN_ENTRY_PATH') || 'local-admin';
 
     return new Response(JSON.stringify({ success: true, redirect: `/${adminEntryPath}` }), {
       status: 200,

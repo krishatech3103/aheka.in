@@ -7,7 +7,7 @@ import { getDataRepository } from '../../lib/repositories/dataRepository';
 
 const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
 
-const adminToken = Astro.cookies.get('aheka_admin_token')?.value;
+const adminToken = Astro.cookies.get('aheka_admin_session')?.value;
 if (!adminToken) {
   return Astro.redirect(`/${adminEntryPath}/login`, 302);
 }
@@ -161,6 +161,7 @@ const talukas = await repo.getAllTalukasAdmin();
                     <th class="px-6 py-4">Taluka (EN / MR)</th>
                     <th class="px-6 py-4">District</th>
                     <th class="px-6 py-4">Slug</th>
+                    <th class="px-6 py-4">GPS Centre</th>
                     <th class="px-6 py-4">Status</th>
                     <th class="px-6 py-4">Featured</th>
                     <th class="px-6 py-4 text-right">Action</th>
@@ -178,6 +179,11 @@ const talukas = await repo.getAllTalukasAdmin();
                         {t.district?.name_en || districts.find(d => d.id === t.district_id)?.name_en || '—'}
                       </td>
                       <td class="px-6 py-4 font-mono text-xs text-ink-secondary">{t.slug}</td>
+                      <td class="px-6 py-4 text-xs text-ink-secondary whitespace-nowrap">
+                        {t.center_latitude != null && t.center_longitude != null
+                          ? `${t.center_latitude}, ${t.center_longitude}`
+                          : 'Not set'}
+                      </td>
                       <td class="px-6 py-4">
                         <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                           t.is_active
@@ -286,6 +292,24 @@ const talukas = await repo.getAllTalukasAdmin();
           <div>
             <label class="block text-xs font-semibold text-ink-secondary mb-1">Slug</label>
             <input id="taluka-slug" type="text" required placeholder="e.g. sangamner" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-canvas text-ink-primary" />
+          </div>
+          <div class="rounded-xl border border-surface-border bg-surface-canvas/60 p-3">
+            <p class="text-xs font-bold text-ink-primary">Automatic location detection</p>
+            <p class="mt-1 text-[11px] leading-relaxed text-ink-muted">Add a taluka-centre GPS point. The public app uses it only for a conservative nearest-taluka suggestion; customers can always select manually.</p>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-ink-secondary mb-1">Latitude</label>
+                <input id="taluka-centre-latitude" type="number" step="0.000001" min="-90" max="90" placeholder="e.g. 19.567840" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-elevated text-ink-primary" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-ink-secondary mb-1">Longitude</label>
+                <input id="taluka-centre-longitude" type="number" step="0.000001" min="-180" max="180" placeholder="e.g. 74.211540" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-elevated text-ink-primary" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-ink-secondary mb-1">Radius (km)</label>
+                <input id="taluka-detection-radius" type="number" step="1" min="1" max="100" value="25" class="w-full px-3 py-2 rounded-xl border border-surface-border text-sm bg-surface-elevated text-ink-primary" />
+              </div>
+            </div>
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
@@ -402,6 +426,9 @@ const talukas = await repo.getAllTalukasAdmin();
       const talukaNameMr = document.getElementById('taluka-name-mr') as HTMLInputElement;
       const talukaSlug = document.getElementById('taluka-slug') as HTMLInputElement;
       const talukaSort = document.getElementById('taluka-sort') as HTMLInputElement;
+      const talukaCentreLatitude = document.getElementById('taluka-centre-latitude') as HTMLInputElement;
+      const talukaCentreLongitude = document.getElementById('taluka-centre-longitude') as HTMLInputElement;
+      const talukaDetectionRadius = document.getElementById('taluka-detection-radius') as HTMLInputElement;
       const talukaActive = document.getElementById('taluka-active') as HTMLInputElement;
       const talukaFeatured = document.getElementById('taluka-featured') as HTMLInputElement;
 
@@ -410,6 +437,7 @@ const talukas = await repo.getAllTalukasAdmin();
         talukaForm.reset();
         talukaActive.checked = true;
         talukaFeatured.checked = false;
+        talukaDetectionRadius.value = '25';
         if (talukaModalTitle) talukaModalTitle.textContent = 'Add New Taluka';
         talukaModal?.classList.remove('hidden');
         talukaModal?.classList.add('flex');
@@ -426,6 +454,9 @@ const talukas = await repo.getAllTalukasAdmin();
           talukaNameMr.value = t.name_mr || '';
           talukaSlug.value = t.slug || '';
           talukaSort.value = t.sort_order ?? 0;
+          talukaCentreLatitude.value = t.center_latitude ?? '';
+          talukaCentreLongitude.value = t.center_longitude ?? '';
+          talukaDetectionRadius.value = t.location_detection_radius_km ?? 25;
           talukaActive.checked = Boolean(t.is_active);
           talukaFeatured.checked = Boolean(t.is_featured);
           if (talukaModalTitle) talukaModalTitle.textContent = 'Edit Taluka: ' + t.name_en;
@@ -455,6 +486,9 @@ const talukas = await repo.getAllTalukasAdmin();
             name_mr: talukaNameMr.value.trim(),
             slug: talukaSlug.value.trim(),
             sort_order: Number(talukaSort.value) || 0,
+            center_latitude: talukaCentreLatitude.value.trim() || null,
+            center_longitude: talukaCentreLongitude.value.trim() || null,
+            location_detection_radius_km: talukaDetectionRadius.value.trim() || null,
             is_active: talukaActive.checked,
             is_featured: talukaFeatured.checked,
           },

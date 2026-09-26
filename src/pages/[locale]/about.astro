@@ -10,10 +10,11 @@ if (!locale || !isValidLocale(locale)) {
 const safeLocale = locale as Locale;
 const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
+const brandName = isMr ? dict.brand.devanagariName : dict.brand.name;
 
-const pageTitle = isMr ? 'आमच्याबद्दल — Aheka (आहे का?)' : 'About Us — Aheka (आहे का?)';
+const pageTitle = isMr ? 'आमच्याबद्दल — आहे का?' : 'About Aheka';
 const pageDesc = isMr
-  ? 'Aheka हे महाराष्ट्रातील लहान शहरे आणि तालुक्यांसाठी स्थानिक सेवा शोध व्यासपीठ आहे.'
+  ? 'महाराष्ट्रातील लहान शहरे आणि तालुक्यांसाठी स्थानिक सेवा शोध व्यासपीठ.'
   : 'Aheka is a hyperlocal service provider discovery platform built for Maharashtra talukas.';
 ---
 
@@ -29,24 +30,24 @@ const pageDesc = isMr
         {isMr ? 'आमचा दृष्टिकोन' : 'Our Mission'}
       </span>
       <h1 class="text-2xl sm:text-4xl font-black text-ink-primary tracking-tight mb-6">
-        Aheka — <span class="text-brand-600">आहे का?</span>
+        {brandName}
       </h1>
 
       <div class="space-y-4 text-ink-secondary text-sm sm:text-base leading-relaxed">
         <p>
           {isMr
             ? 'महाराष्ट्रात कोणत्याही लहान गावात किंवा शहरात जेव्हा नळ गळतो किंवा लाईट जाते, तेव्हा सर्वात आधी विचारला जाणारा प्रश्न म्हणजे: "इलेक्ट्रिशियन आहे का?" किंवा "प्लंबर आहे का?"'
-            : 'In any town or village across Maharashtra, whenever an electrical short or plumbing leak occurs, the very first question asked is: "Electrician ahe ka?" (Is an electrician available?) or "Plumber ahe ka?".'}
+            : 'In any town or village across Maharashtra, whenever an electrical short or plumbing leak occurs, the first question is simple: "Is an electrician available?" or "Is a plumber available?"'}
         </p>
 
         <p>
           {isMr
-            ? 'Aheka (aheka.in) हा या प्रश्नाचे सहज, पारदर्शक आणि विश्वासू उत्तर देण्याचा प्रयत्न आहे.'
+            ? 'हे व्यासपीठ या प्रश्नाचे सहज, पारदर्शक आणि विश्वासू उत्तर देण्याचा प्रयत्न आहे.'
             : 'Aheka (aheka.in) was created to provide a simple, transparent, and trusted answer to that exact question.'}
         </p>
 
         <h2 class="text-xl font-bold text-ink-primary pt-4">
-          {isMr ? 'Aheka चे वेगळेपण काय आहे?' : 'What makes Aheka different?'}
+          {isMr ? 'या व्यासपीठाचे वेगळेपण काय आहे?' : 'What makes Aheka different?'}
         </h2>
 
         <ul class="list-disc pl-5 space-y-2">
@@ -57,7 +58,7 @@ const pageDesc = isMr
               : 'Unlike managed marketplaces, customers contact service providers directly via phone or WhatsApp. Providers keep 100% of their earnings.'}
           </li>
           <li>
-            <strong>{isMr ? 'दररोज फेरबदल (Deterministic Daily Rotation):' : 'Fair Daily Rotation:'}</strong>{' '}
+            <strong>{isMr ? 'न्याय्य दररोज फेरबदल:' : 'Fair Daily Rotation:'}</strong>{' '}
             {isMr
               ? 'कोणताही कारागीर जास्त पैसे देऊन वर राहू शकत नाही. सर्व १० कारागिरांना समान दृश्यमानता मिळावी यासाठी दररोज मध्यरात्री संगणकीय नियमानुसार यादी फिरवली जाते.'
               : 'No provider can pay extra to monopolize the top position. All 10 providers in a taluka rotate daily to guarantee equal, fair visibility.'}
@@ -71,9 +72,9 @@ const pageDesc = isMr
         </ul>
 
         <div class="pt-6 border-t border-surface-border mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p class="text-xs text-ink-muted">
-            {isMr ? 'प्रश्न किंवा सहयोगासाठी संपर्क साधा: support@aheka.in' : 'Questions or partnerships? Email support@aheka.in'}
-          </p>
+          <a href={`/${safeLocale}/contact`} class="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline">
+            {isMr ? 'प्रश्न किंवा सहयोगासाठी आमच्याशी संपर्क करा' : 'Questions or partnerships? Contact us'}
+          </a>
           <a
             href={`/${safeLocale}/join`}
             class="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl transition-colors"
