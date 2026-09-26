@@ -1,7 +1,6 @@
 -- 001_core_schema.sql
 -- Aheka Hyperlocal Platform Core Schema
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Enums
 CREATE TYPE user_role AS ENUM ('admin', 'vendor');
@@ -14,7 +13,7 @@ CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
 
 -- 1. Districts (e.g. Ahilyanagar, Pune, Nashik)
 CREATE TABLE districts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name_en VARCHAR(100) NOT NULL,
   name_mr VARCHAR(100) NOT NULL,
   slug VARCHAR(100) UNIQUE NOT NULL,
@@ -26,7 +25,7 @@ CREATE TABLE districts (
 
 -- 2. Talukas (e.g. Sangamner, Akole, Rahuri)
 CREATE TABLE talukas (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   district_id UUID NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
   name_en VARCHAR(100) NOT NULL,
   name_mr VARCHAR(100) NOT NULL,
@@ -40,7 +39,7 @@ CREATE TABLE talukas (
 
 -- 3. Categories (Admin-managed, e.g. Electrician, Plumber)
 CREATE TABLE categories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name_en VARCHAR(100) NOT NULL,
   name_mr VARCHAR(100) NOT NULL,
   slug VARCHAR(100) UNIQUE NOT NULL,
@@ -55,7 +54,7 @@ CREATE TABLE categories (
 
 -- 4. Category Search Aliases (e.g. "લાઈટ काम", "wireman", "light fitting")
 CREATE TABLE category_aliases (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   alias VARCHAR(100) NOT NULL,
   locale VARCHAR(10) NOT NULL DEFAULT 'mr',
@@ -64,7 +63,7 @@ CREATE TABLE category_aliases (
 
 -- 5. Vendors (Service Providers)
 CREATE TABLE vendors (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug VARCHAR(150) UNIQUE NOT NULL,
   provider_name VARCHAR(150) NOT NULL,
   business_name VARCHAR(200),
@@ -91,7 +90,7 @@ CREATE TABLE vendors (
 
 -- 6. Application Users (Mapping Supabase Auth to roles)
 CREATE TABLE app_users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   auth_user_id UUID UNIQUE NOT NULL,
   role user_role NOT NULL DEFAULT 'vendor',
   vendor_id UUID REFERENCES vendors(id) ON DELETE SET NULL,
@@ -102,7 +101,7 @@ CREATE TABLE app_users (
 
 -- 7. Vendor Service Areas (Villages/Localities within selected taluka)
 CREATE TABLE vendor_service_areas (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
   taluka_id UUID NOT NULL REFERENCES talukas(id) ON DELETE RESTRICT,
   area_name_en VARCHAR(150) NOT NULL,
@@ -113,7 +112,7 @@ CREATE TABLE vendor_service_areas (
 
 -- 8. Vendor Listings (Commercial unit: 1 Vendor + 1 Category + 1 Taluka)
 CREATE TABLE vendor_listings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
   taluka_id UUID NOT NULL REFERENCES talukas(id) ON DELETE RESTRICT,
@@ -128,7 +127,7 @@ CREATE TABLE vendor_listings (
 
 -- 9. Subscriptions (Annual validity per listing)
 CREATE TABLE subscriptions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_listing_id UUID NOT NULL REFERENCES vendor_listings(id) ON DELETE RESTRICT,
   amount NUMERIC(10, 2) NOT NULL DEFAULT 999.00,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -141,7 +140,7 @@ CREATE TABLE subscriptions (
 
 -- 10. Payments (Manual receipts recorded by Admin)
 CREATE TABLE payments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_listing_id UUID NOT NULL REFERENCES vendor_listings(id) ON DELETE RESTRICT,
   vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE RESTRICT,
   subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE RESTRICT,
@@ -157,7 +156,7 @@ CREATE TABLE payments (
 
 -- 11. Vendor Applications (Join Aheka submissions)
 CREATE TABLE vendor_applications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider_name VARCHAR(150) NOT NULL,
   business_name VARCHAR(200),
   mobile VARCHAR(20) NOT NULL,
@@ -180,7 +179,7 @@ CREATE TABLE vendor_applications (
 
 -- 12. Vendor Application Requested Categories
 CREATE TABLE vendor_application_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   application_id UUID NOT NULL REFERENCES vendor_applications(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
   taluka_id UUID NOT NULL REFERENCES talukas(id) ON DELETE RESTRICT,
@@ -189,7 +188,7 @@ CREATE TABLE vendor_application_items (
 
 -- 13. Analytics Events (Privacy-first, no customer personal details)
 CREATE TABLE analytics_events (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
   vendor_listing_id UUID REFERENCES vendor_listings(id) ON DELETE SET NULL,
   event_type analytics_event_type NOT NULL,
@@ -200,7 +199,7 @@ CREATE TABLE analytics_events (
 
 -- 14. Directory Page Settings (Custom SEO & Introductions per Taluka + Category)
 CREATE TABLE directory_page_settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   taluka_id UUID NOT NULL REFERENCES talukas(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   seo_title_en VARCHAR(255),
