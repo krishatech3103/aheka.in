@@ -3,7 +3,10 @@ export type Locale = 'mr' | 'en';
 // English is the public default. Marathi remains a complete, opt-in locale.
 export const DEFAULT_LOCALE: Locale = 'en';
 export const SUPPORTED_LOCALES: Locale[] = ['en', 'mr'];
-export const LOCALE_PREFERENCE_COOKIE = 'aheka_locale';
+// Versioning deliberately ignores the obsolete preference cookie from the
+// earlier release. This gives every device one clean English-first visit.
+export const LOCALE_PREFERENCE_COOKIE = 'aheka_locale_v2';
+export const LOCALE_PREFERENCE_STORAGE_KEY = 'aheka_locale_v2';
 
 export function getPreferredLocale(value: string | undefined): Locale {
   return value === 'mr' || value === 'en' ? value : DEFAULT_LOCALE;
@@ -96,7 +99,6 @@ export const dictionaries = {
       noProvidersDesc: 'आम्ही या तालुक्यात नवीन सेवा प्रदाते लवकरच जोडत आहोत. तुम्ही ही सेवा देत असल्यास आजच नोंदणी करा.',
       otherServicesInTaluka: 'या तालुक्यातील इतर सेवा',
       allCategoriesInMaharashtra: 'महाराष्ट्रातील सर्व सेवा प्रकार',
-      dailyRotationNote: 'सर्व पात्र सेवा प्रदात्यांना दररोज निष्पक्ष रोटेशनद्वारे समान संधी मिळते.',
     },
     home: {
       badge: 'महाराष्ट्रासाठी स्थानिक सेवा शोध',
@@ -271,7 +273,6 @@ export const dictionaries = {
       noProvidersDesc: 'We are onboarding vetted providers for this taluka. If you provide this service, apply to join Aheka today.',
       otherServicesInTaluka: 'Other Services in this Taluka',
       allCategoriesInMaharashtra: 'All Service Categories in Maharashtra',
-      dailyRotationNote: 'All eligible active providers receive equal daily visibility through deterministic rotation.',
     },
     home: {
       badge: 'Hyperlocal service search for Maharashtra',

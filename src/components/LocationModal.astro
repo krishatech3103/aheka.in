@@ -11,194 +11,254 @@ interface Props {
 const { locale, districts, talukas } = Astro.props;
 const dict = getDictionary(locale);
 const isMr = locale === 'mr';
-const locationCandidates = talukas
-  .filter((taluka) => taluka.center_latitude != null && taluka.center_longitude != null)
-  .map((taluka) => {
-    const district = districts.find((item) => item.id === taluka.district_id);
-    return {
-      slug: taluka.slug,
-      district_slug: district?.slug || '',
-      name_en: taluka.name_en,
-      name_mr: taluka.name_mr,
-      center_latitude: taluka.center_latitude,
-      center_longitude: taluka.center_longitude,
-      location_detection_radius_km: taluka.location_detection_radius_km,
-    };
-  })
-  .filter((taluka) => Boolean(taluka.district_slug));
+const locationOptions = talukas.map((taluka) => {
+  const district = districts.find((item) => item.id === taluka.district_id);
+  return {
+    slug: taluka.slug,
+    districtSlug: district?.slug || '',
+    name: isMr ? taluka.name_mr : taluka.name_en,
+    districtName: district ? (isMr ? district.name_mr : district.name_en) : '',
+    center_latitude: taluka.center_latitude,
+    center_longitude: taluka.center_longitude,
+    location_detection_radius_km: taluka.location_detection_radius_km,
+  };
+}).filter((taluka) => Boolean(taluka.districtSlug));
+const districtOptions = districts
+  .filter((district) => locationOptions.some((taluka) => taluka.districtSlug === district.slug))
+  .map((district) => ({ slug: district.slug, name: isMr ? district.name_mr : district.name_en }));
+const labels = {
+  title: isMr ? 'तुमचे ठिकाण निवडा' : 'Choose your location',
+  description: isMr ? 'जिल्हा आणि तालुका एकदा निवडा. तुम्ही बदलेपर्यंत ते या उपकरणावर जतन राहील.' : 'Choose your district and taluka once. It stays saved on this device until you change it.',
+  district: dict.nav.selectDistrict,
+  taluka: dict.nav.selectTaluka,
+  districtFirst: isMr ? 'आधी जिल्हा निवडा' : 'Select district first',
+  save: isMr ? 'ठिकाण जतन करा' : 'Save location',
+  saved: isMr ? 'ठिकाण जतन झाले.' : 'Location saved.',
+  recommended: isMr ? 'तुमच्या सध्याच्या ठिकाणासाठी शिफारस' : 'Recommended for your current location',
+  useRecommended: isMr ? 'ही शिफारस निवडा' : 'Use this recommendation',
+  reviewAndSave: isMr ? 'निवड तपासा आणि जतन करा.' : 'Review the selection, then save it.',
+  ...dict.locationDetection,
+};
 ---
 
 <dialog
   id="location-dialog"
-  data-locale={locale}
-  data-location-candidates={JSON.stringify(locationCandidates)}
-  data-location-labels={JSON.stringify(dict.locationDetection)}
-  class="m-auto rounded-2xl p-0 shadow-2xl border border-surface-border bg-white max-w-lg w-[92vw] backdrop:bg-ink-primary/50 backdrop:backdrop-blur-xs open:animate-fade-in"
+  data-options={JSON.stringify(locationOptions)}
+  data-districts={JSON.stringify(districtOptions)}
+  data-labels={JSON.stringify(labels)}
+  class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-surface-border bg-white p-0 shadow-2xl backdrop:bg-ink-primary/50 backdrop:backdrop-blur-xs dark:bg-ink-surface"
+  aria-labelledby="location-dialog-title"
 >
   <div class="p-5 sm:p-6">
-    <div class="flex items-center justify-between border-b border-surface-border pb-4">
+    <div class="flex items-start justify-between gap-4 border-b border-surface-border pb-4">
       <div>
-        <h3 class="text-lg font-bold text-ink-primary">
-          {dict.nav.changeLocation}
-        </h3>
-        <p class="text-xs text-ink-muted mt-0.5">
-          {isMr ? 'तुमच्या जवळील सेवा शोधण्यासाठी तालुका निवडा' : 'Select your taluka to find providers near you'}
-        </p>
+        <h2 id="location-dialog-title" class="text-lg font-bold text-ink-primary">{labels.title}</h2>
+        <p class="mt-1 text-xs leading-relaxed text-ink-muted">{labels.description}</p>
       </div>
-      <button
-        type="button"
-        onclick="document.getElementById('location-dialog')?.close()"
-        class="p-2 text-ink-muted hover:text-ink-primary rounded-lg hover:bg-surface-muted"
-        aria-label="Close"
-      >
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      <button type="button" data-location-close class="rounded-xl p-2 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink-primary" aria-label="Close">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    {locationCandidates.length > 0 && (
-      <div class="mt-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50/70 dark:bg-brand-950/30 p-3.5">
-        <button
-          id="detect-location-btn"
-          type="button"
-          class="inline-flex items-center gap-2 text-sm font-bold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 disabled:opacity-60 disabled:cursor-wait"
-          aria-describedby="detect-location-status"
-        >
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.25 7-12a7 7 0 10-14 0c0 6.75 7 12 7 12z" />
-            <circle cx="12" cy="9" r="2.25" stroke-width="2" />
+    <div class="mt-4 rounded-2xl border border-brand-200 bg-brand-50/70 p-3.5 dark:border-brand-800 dark:bg-brand-950/30">
+      <button id="detect-location-btn" type="button" class="inline-flex items-center gap-2 text-sm font-bold text-brand-700 transition-colors hover:text-brand-800 disabled:cursor-wait disabled:opacity-60 dark:text-brand-300 dark:hover:text-brand-200" aria-describedby="detect-location-status">
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-brand-700 shadow-sm dark:bg-ink-surface dark:text-brand-300">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <circle cx="12" cy="12" r="7" stroke-width="2" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1v3m0 16v3M1 12h3m16 0h3" />
+            <circle cx="12" cy="12" r="2" stroke-width="2" />
           </svg>
-          <span>{dict.locationDetection.useMyLocation}</span>
-        </button>
-        <p id="detect-location-status" role="status" aria-live="polite" class="mt-1 text-[11px] leading-relaxed text-ink-muted">
-          {dict.locationDetection.privacyNote}
-        </p>
+        </span>
+        <span>{labels.useMyLocation}</span>
+      </button>
+      <p id="detect-location-status" role="status" aria-live="polite" class="mt-2 text-[11px] leading-relaxed text-ink-muted">{labels.privacyNote}</p>
+      <div id="location-recommendation" class="mt-3 hidden rounded-xl border border-brand-200 bg-white p-3 dark:border-brand-800 dark:bg-ink-surface">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">{labels.recommended}</p>
+        <p id="location-recommendation-name" class="mt-1 text-sm font-bold text-ink-primary"></p>
+        <button id="use-recommended-location" type="button" class="mt-2 text-xs font-bold text-brand-700 hover:underline dark:text-brand-300">{labels.useRecommended}</button>
       </div>
-    )}
+    </div>
 
-    <!-- District & Taluka Groupings -->
-    <div class="mt-4 space-y-5 max-h-[65vh] overflow-y-auto pr-1">
-      {districts.map((district) => {
-        const districtTalukas = talukas.filter(t => t.district_id === district.id);
-        return (
-          <div>
-            <h4 class="text-xs font-bold uppercase tracking-wider text-brand-700 mb-2 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-              <span>{isMr ? district.name_mr : district.name_en} {isMr ? 'जिल्हा' : 'District'}</span>
-            </h4>
-            <div class="grid grid-cols-2 gap-2">
-              {districtTalukas.map((taluka) => (
-                <a
-                  href={`/${locale}/${district.slug}/${taluka.slug}`}
-                  class="flex items-center justify-between p-3 rounded-xl border border-surface-border hover:border-brand-500 hover:bg-brand-50/60 text-xs sm:text-sm font-medium text-ink-primary transition-all group"
-                  onclick="document.getElementById('location-dialog')?.close()"
-                >
-                  <span>{isMr ? taluka.name_mr : taluka.name_en}</span>
-                  <svg class="w-4 h-4 text-ink-muted group-hover:text-brand-600 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+    <div class="mt-5 grid gap-3 sm:grid-cols-2">
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-bold text-ink-secondary">{labels.district}</span>
+        <select id="location-district-select" class="w-full rounded-xl border border-surface-border bg-surface-canvas px-3 py-3 text-sm font-semibold text-ink-primary outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-ink-canvas"></select>
+      </label>
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-bold text-ink-secondary">{labels.taluka}</span>
+        <select id="location-taluka-select" disabled class="w-full rounded-xl border border-surface-border bg-surface-canvas px-3 py-3 text-sm font-semibold text-ink-primary outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-55 dark:bg-ink-canvas"></select>
+      </label>
+    </div>
+
+    <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <button type="button" data-location-close class="rounded-xl border border-surface-border px-4 py-3 text-sm font-bold text-ink-secondary transition-colors hover:bg-surface-muted">{dict.actions.cancel}</button>
+      <button id="save-location-btn" type="button" disabled class="rounded-xl bg-brand-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">{labels.save}</button>
     </div>
   </div>
 </dialog>
 
 <script>
   import { findNearestSupportedTaluka } from '../lib/location/nearestTaluka';
+  import { readLocationPreference, saveLocationPreference } from '../lib/location/preference';
 
-  // Close dialog if backdrop is clicked
+  type LocationOption = {
+    slug: string;
+    districtSlug: string;
+    name: string;
+    districtName: string;
+    center_latitude?: number | null;
+    center_longitude?: number | null;
+    location_detection_radius_km?: number | null;
+  };
+
   const dialog = document.getElementById('location-dialog') as HTMLDialogElement | null;
-  dialog?.addEventListener('click', (event) => {
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= event.clientY &&
-      event.clientY <= rect.top + rect.height &&
-      rect.left <= event.clientX &&
-      event.clientX <= rect.left + rect.width
-    );
-    if (!isInDialog) {
-      dialog.close();
-    }
-  });
 
-  function setupLocationDetection() {
-    const locateButton = document.getElementById('detect-location-btn') as HTMLButtonElement | null;
+  function setupLocationDialog() {
+    if (!dialog || dialog.dataset.initialized === 'true') return;
+    dialog.dataset.initialized = 'true';
+
+    const options = JSON.parse(dialog.dataset.options || '[]') as LocationOption[];
+    const districts = JSON.parse(dialog.dataset.districts || '[]') as Array<{ slug: string; name: string }>;
+    const labels = JSON.parse(dialog.dataset.labels || '{}') as Record<string, string>;
+    const districtSelect = document.getElementById('location-district-select') as HTMLSelectElement | null;
+    const talukaSelect = document.getElementById('location-taluka-select') as HTMLSelectElement | null;
+    const saveButton = document.getElementById('save-location-btn') as HTMLButtonElement | null;
+    const detectButton = document.getElementById('detect-location-btn') as HTMLButtonElement | null;
     const status = document.getElementById('detect-location-status');
-    if (!dialog || !locateButton || !status) return;
+    const recommendation = document.getElementById('location-recommendation');
+    const recommendationName = document.getElementById('location-recommendation-name');
+    const useRecommendation = document.getElementById('use-recommended-location') as HTMLButtonElement | null;
+    if (!districtSelect || !talukaSelect || !saveButton || !detectButton || !status || !recommendation || !recommendationName || !useRecommendation) return;
 
-    const candidates = JSON.parse(dialog.dataset.locationCandidates || '[]') as any[];
-    const labels = JSON.parse(dialog.dataset.locationLabels || '{}');
-    const locale = dialog.dataset.locale || 'en';
+    let recommendedOption: LocationOption | null = null;
+
+    const close = () => dialog.close();
+    dialog.querySelectorAll<HTMLElement>('[data-location-close]').forEach((button) => button.addEventListener('click', close));
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) close();
+    });
+
+    const updateSaveState = () => {
+      saveButton.disabled = !options.some((option) => option.districtSlug === districtSelect.value && option.slug === talukaSelect.value);
+    };
+
+    const renderTalukas = (districtSlug: string, selectedTalukaSlug = '') => {
+      talukaSelect.replaceChildren();
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = districtSlug ? labels.taluka : labels.districtFirst;
+      talukaSelect.append(placeholder);
+      options.filter((option) => option.districtSlug === districtSlug).forEach((option) => {
+        const item = document.createElement('option');
+        item.value = option.slug;
+        item.textContent = option.name;
+        talukaSelect.append(item);
+      });
+      talukaSelect.disabled = !districtSlug;
+      talukaSelect.value = selectedTalukaSlug;
+      if (!talukaSelect.value) talukaSelect.value = '';
+      updateSaveState();
+    };
+
+    const setSelection = (districtSlug: string, talukaSlug = '') => {
+      districtSelect.value = districtSlug;
+      renderTalukas(districtSlug, talukaSlug);
+    };
+
+    districts.forEach((district) => {
+      const item = document.createElement('option');
+      item.value = district.slug;
+      item.textContent = district.name;
+      districtSelect.append(item);
+    });
+    const districtPlaceholder = document.createElement('option');
+    districtPlaceholder.value = '';
+    districtPlaceholder.textContent = labels.district;
+    districtSelect.prepend(districtPlaceholder);
+    renderTalukas('');
+
+    districtSelect.addEventListener('change', () => {
+      recommendation.classList.add('hidden');
+      renderTalukas(districtSelect.value);
+    });
+    talukaSelect.addEventListener('change', updateSaveState);
+
+    dialog.addEventListener('toggle', () => {
+      if (!dialog.open) return;
+      const saved = readLocationPreference();
+      setSelection(saved?.districtSlug || '', saved?.talukaSlug || '');
+      recommendation.classList.add('hidden');
+      status.textContent = labels.privacyNote;
+    });
+
+    saveButton.addEventListener('click', () => {
+      if (saveButton.disabled) return;
+      saveLocationPreference({ districtSlug: districtSelect.value, talukaSlug: talukaSelect.value });
+      status.textContent = labels.saved;
+      close();
+    });
+
+    useRecommendation.addEventListener('click', () => {
+      if (!recommendedOption) return;
+      setSelection(recommendedOption.districtSlug, recommendedOption.slug);
+      recommendation.classList.add('hidden');
+      status.textContent = labels.reviewAndSave;
+    });
 
     const showStatus = (message: string, isError = false) => {
       status.textContent = message;
-      status.className = `mt-1 text-[11px] leading-relaxed ${isError
-        ? 'text-amber-700 dark:text-amber-300'
-        : 'text-ink-muted'}`;
+      status.className = `mt-2 text-[11px] leading-relaxed ${isError ? 'text-amber-700 dark:text-amber-300' : 'text-ink-muted'}`;
     };
 
-    locateButton.onclick = () => {
+    detectButton.addEventListener('click', () => {
       if (!navigator.geolocation) {
         showStatus(labels.unavailable, true);
         return;
       }
-
-      locateButton.disabled = true;
-      locateButton.querySelector('span')!.textContent = labels.locating;
+      detectButton.disabled = true;
+      detectButton.querySelector('span:last-child')!.textContent = labels.locating;
+      recommendation.classList.add('hidden');
       showStatus(labels.privacyNote);
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          const reset = () => {
+            detectButton.disabled = false;
+            detectButton.querySelector('span:last-child')!.textContent = labels.useMyLocation;
+          };
           if (!Number.isFinite(position.coords.accuracy) || position.coords.accuracy > 10_000) {
             showStatus(labels.lowAccuracy, true);
-            locateButton.disabled = false;
-            locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+            reset();
             return;
           }
-
-          const result = findNearestSupportedTaluka(
-            position.coords.latitude,
-            position.coords.longitude,
-            candidates,
-            position.coords.accuracy,
-          );
+          const result = findNearestSupportedTaluka(position.coords.latitude, position.coords.longitude, options, position.coords.accuracy);
           if (!result) {
             showStatus(labels.noConfidentMatch, true);
-            locateButton.disabled = false;
-            locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+            reset();
             return;
           }
-
-          const talukaName = locale === 'mr' ? result.taluka.name_mr : result.taluka.name_en;
-          showStatus(`${labels.locationSelected} ${talukaName}`);
-          window.setTimeout(() => {
-            window.location.assign(`/${locale}/${result.taluka.district_slug}/${result.taluka.slug}`);
-          }, 350);
+          recommendedOption = result.taluka;
+          recommendationName.textContent = `${result.taluka.name} (${result.taluka.districtName})`;
+          recommendation.classList.remove('hidden');
+          showStatus(labels.locationSelected);
+          reset();
         },
         (error) => {
-          const message = error.code === error.PERMISSION_DENIED
+          showStatus(error.code === error.PERMISSION_DENIED
             ? labels.permissionDenied
             : error.code === error.TIMEOUT
-            ? labels.timeout
-            : labels.positionUnavailable;
-          showStatus(message, true);
-          locateButton.disabled = false;
-          locateButton.querySelector('span')!.textContent = labels.useMyLocation;
+              ? labels.timeout
+              : labels.positionUnavailable, true);
+          detectButton.disabled = false;
+          detectButton.querySelector('span:last-child')!.textContent = labels.useMyLocation;
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10_000,
-          maximumAge: 300_000,
-        },
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
       );
-    };
+    });
   }
 
-  setupLocationDetection();
-  document.addEventListener('astro:page-load', setupLocationDetection);
+  setupLocationDialog();
+  document.addEventListener('astro:page-load', setupLocationDialog);
 </script>

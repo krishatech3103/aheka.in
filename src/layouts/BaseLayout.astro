@@ -5,7 +5,7 @@ import Footer from '../components/Footer.astro';
 import LocationModal from '../components/LocationModal.astro';
 import ThemeInitScript from '../components/ThemeInitScript.astro';
 import { ViewTransitions } from 'astro:transitions';
-import { getDictionary, type Locale, DEFAULT_LOCALE } from '../lib/i18n';
+import { getDictionary, LOCALE_PREFERENCE_COOKIE, LOCALE_PREFERENCE_STORAGE_KEY, type Locale, DEFAULT_LOCALE } from '../lib/i18n';
 import { getDataRepository } from '../lib/repositories/dataRepository';
 import { getSiteUrl } from '../lib/runtime/config';
 import type { Category, District, Taluka } from '../lib/types/database';
@@ -182,6 +182,14 @@ const organizationSchema = {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
+    </script>
+    <script is:inline define:vars={{ locale, localePreferenceCookie: LOCALE_PREFERENCE_COOKIE, localePreferenceStorageKey: LOCALE_PREFERENCE_STORAGE_KEY }}>
+      // Remember the language of every public page. A new device reaches /en
+      // first; explicit language navigation then persists on this device.
+      try {
+        localStorage.setItem(localePreferenceStorageKey, locale);
+        document.cookie = `${localePreferenceCookie}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      } catch {}
     </script>
   </body>
 </html>

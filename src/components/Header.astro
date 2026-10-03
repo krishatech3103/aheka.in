@@ -156,7 +156,6 @@ const localePreferenceCookie = LOCALE_PREFERENCE_COOKIE + '=' + alternateLocale 
         return (
           <a
             href={item.href}
-            data-mobile-nav-close
             aria-current={isActive ? 'page' : undefined}
             class={`mobile-nav-link flex items-center justify-between w-full px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors ${isActive
               ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300'
@@ -186,7 +185,6 @@ const localePreferenceCookie = LOCALE_PREFERENCE_COOKIE + '=' + alternateLocale 
     <!-- Provider Onboarding CTA -->
     <a
       href={`/${locale}/join`}
-      data-mobile-nav-close
       class="flex items-center justify-center w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-sm transition-colors text-center"
     >
       {dict.nav.join}
@@ -195,9 +193,9 @@ const localePreferenceCookie = LOCALE_PREFERENCE_COOKIE + '=' + alternateLocale 
     <!-- Controls Row: Language Switch & Theme Toggle -->
     <div class="flex items-center justify-between pt-2 border-t border-surface-border">
       <!-- Language Switch -->
-      <a
-        href={alternatePath}
-        onclick={"document.cookie = " + JSON.stringify(localePreferenceCookie)}
+        <a
+          href={alternatePath}
+          onclick={"document.cookie = " + JSON.stringify(localePreferenceCookie)}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-surface-border bg-surface-muted hover:bg-white dark:hover:bg-ink-border text-ink-primary transition-all shadow-2xs"
       >
         <span class="text-ink-muted text-[10px]">{isMr ? 'भाषा:' : 'Language:'}</span>

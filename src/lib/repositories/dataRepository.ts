@@ -33,6 +33,47 @@ import { getPublicSupabaseClient, getAdminSupabaseClient } from '../supabase/cli
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isProductionRuntime, type RuntimeEnv } from '../runtime/config';
 
+type CachedRead = {
+  expiresAt: number;
+  value: Promise<unknown>;
+};
+
+// Cloudflare isolates and local dev reuse this small cache between requests.
+// It removes duplicate Supabase reads during navigation without persisting data
+// beyond the short TTLs below. Rejected reads are never cached.
+const runtimeReadCache = new Map<string, CachedRead>();
+
+async function readThroughCache<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const existing = runtimeReadCache.get(key);
+  if (existing && existing.expiresAt > now) return existing.value as Promise<T>;
+
+  const value = load().catch((error) => {
+    runtimeReadCache.delete(key);
+    throw error;
+  });
+  runtimeReadCache.set(key, { expiresAt: now + ttlMs, value });
+  return value;
+}
+
+function clearRuntimeReadCache(...prefixes: string[]): void {
+  for (const key of runtimeReadCache.keys()) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) {
+      runtimeReadCache.delete(key);
+    }
+  }
+}
+
+const PUBLIC_DIRECTORY_TTL_MS = 60_000;
+const PUBLIC_PROVIDER_TTL_MS = 30_000;
+// Admin pages frequently reuse the same data while navigating between screens.
+// Keep this cache deliberately short and invalidate it after every admin write.
+const ADMIN_READ_TTL_MS = 15_000;
+
+function clearAdminReadCache(): void {
+  clearRuntimeReadCache('admin:');
+}
+
 export interface AdminTrialMetrics {
   activeTrials: number;
   trialsExpiring7Days: number;
@@ -268,6 +309,7 @@ export interface DataRepository {
     vendorId: string,
     updates: Partial<Pick<Vendor, 'provider_name' | 'business_name' | 'mobile' | 'whatsapp_number' | 'full_address' | 'google_maps_url' | 'experience_years' | 'profile_image_url' | 'description_mr' | 'description_en'>>
   ): Promise<{ success: boolean; error?: string }>;
+  deleteVendor(vendorId: string): Promise<{ success: boolean; error?: string }>;
 
   getPayments(): Promise<Payment[]>;
 
@@ -283,6 +325,7 @@ export interface DataRepository {
   updateTaluka(id: string, updates: Partial<Pick<Taluka, 'district_id' | 'name_en' | 'name_mr' | 'slug' | 'is_active' | 'is_featured' | 'sort_order' | 'center_latitude' | 'center_longitude' | 'location_detection_radius_km'>>): Promise<{ success: boolean; error?: string }>;
   addCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<Category>;
   updateCategory(id: string, updates: Partial<Pick<Category, 'name_en' | 'name_mr' | 'slug' | 'description_en' | 'description_mr' | 'icon_key' | 'is_visible' | 'is_featured' | 'aliases' | 'sort_order'>>): Promise<{ success: boolean; error?: string }>;
+  deleteCategory(id: string): Promise<{ success: boolean; error?: string }>;
 }
 
 // In-Memory Dev Store
@@ -1728,6 +1771,17 @@ class MockDataRepository implements DataRepository {
     return { success: true };
   }
 
+  async deleteVendor(vendorId: string): Promise<{ success: boolean; error?: string }> {
+    const vendorIndex = this.vendors.findIndex(vendor => vendor.id === vendorId);
+    if (vendorIndex < 0) return { success: false, error: 'Vendor not found' };
+    const listingIds = new Set(this.vendorListings.filter(listing => listing.vendor_id === vendorId).map(listing => listing.id));
+    this.vendorListings = this.vendorListings.filter(listing => listing.vendor_id !== vendorId);
+    this.subscriptions = this.subscriptions.filter(subscription => !listingIds.has(subscription.vendor_listing_id));
+    this.payments = this.payments.filter(payment => payment.vendor_id !== vendorId);
+    this.vendors.splice(vendorIndex, 1);
+    return { success: true };
+  }
+
   async getPayments(): Promise<Payment[]> {
     return [...this.payments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
@@ -1800,6 +1854,16 @@ class MockDataRepository implements DataRepository {
     Object.assign(cat, updates, { updated_at: new Date().toISOString() });
     return { success: true };
   }
+
+  async deleteCategory(id: string): Promise<{ success: boolean; error?: string }> {
+    if (this.vendorListings.some(listing => listing.category_id === id)) {
+      return { success: false, error: 'This category has vendor listings. Delete or move those listings first.' };
+    }
+    const categoryIndex = this.categories.findIndex(category => category.id === id);
+    if (categoryIndex < 0) return { success: false, error: 'Category not found' };
+    this.categories.splice(categoryIndex, 1);
+    return { success: true };
+  }
 }
 
 export class SupabaseDataRepository implements DataRepository {
@@ -1830,130 +1894,107 @@ export class SupabaseDataRepository implements DataRepository {
   }
 
   async getDistricts(): Promise<District[]> {
-    try {
-      const { data, error } = await this.client
-        .from('districts')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
-      return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
-    }
+    return readThroughCache('public:districts', PUBLIC_DIRECTORY_TTL_MS, async () => {
+      try {
+        const { data, error } = await this.client
+          .from('districts')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        if (error || !data) return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
+        return data;
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getDistricts(), 'district lookup');
+      }
+    });
   }
 
   async getDistrictBySlug(slug: string): Promise<District | null> {
-    try {
-      const { data, error } = await this.client
-        .from('districts')
-        .select('*')
-        .eq('slug', slug)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (error) return this.fallbackOrThrow(() => this.fallback.getDistrictBySlug(slug), 'district lookup');
-      return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getDistrictBySlug(slug), 'district lookup');
-    }
+    const districts = await this.getDistricts();
+    return districts.find((district) => district.slug === slug) || null;
   }
 
   async getTalukas(districtId?: string): Promise<Taluka[]> {
-    try {
-      let query = this.client
-        .from('talukas')
-        .select('*, district:districts(*)')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-      if (districtId) {
-        query = query.eq('district_id', districtId);
+    const talukas = await readThroughCache('public:talukas', PUBLIC_DIRECTORY_TTL_MS, async () => {
+      try {
+        const { data, error } = await this.client
+          .from('talukas')
+          .select('*, district:districts(*)')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        if (error || !data) return this.fallbackOrThrow(() => this.fallback.getTalukas(), 'taluka lookup');
+        return data as Taluka[];
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getTalukas(), 'taluka lookup');
       }
-      const { data, error } = await query;
-      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getTalukas(districtId), 'taluka lookup');
-      return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getTalukas(districtId), 'taluka lookup');
-    }
+    });
+    return districtId ? talukas.filter((taluka) => taluka.district_id === districtId) : talukas;
   }
 
   async getTalukaBySlugs(districtSlug: string, talukaSlug: string): Promise<Taluka | null> {
-    try {
-      const { data, error } = await this.client
-        .from('talukas')
-        .select('*, district:districts!inner(*)')
-        .eq('slug', talukaSlug)
-        .eq('districts.slug', districtSlug)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getTalukaBySlugs(districtSlug, talukaSlug), 'taluka lookup');
-      return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getTalukaBySlugs(districtSlug, talukaSlug), 'taluka lookup');
-    }
+    if (!/^[a-z0-9-]+$/i.test(talukaSlug)) return null;
+    const [districts, talukas] = await Promise.all([this.getDistricts(), this.getTalukas()]);
+    const district = districts.find((item) => item.slug === districtSlug);
+    if (!district) return null;
+    const taluka = talukas.find((item) => (
+      item.district_id === district.id && item.slug.toLowerCase() === talukaSlug.toLowerCase()
+    ));
+    return taluka ? { ...taluka, district } : null;
   }
 
   async getCategories(): Promise<Category[]> {
-    try {
-      const { data, error } = await this.client
-        .from('categories')
-        .select('*, category_aliases(alias)')
-        .eq('is_visible', true)
-        .order('sort_order', { ascending: true });
-      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
-      return data.map((c: any) => ({
-        ...c,
-        aliases: Array.isArray(c.category_aliases)
-          ? c.category_aliases.map((a: any) => a.alias)
-          : (c.aliases || []),
-      }));
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
-    }
+    return readThroughCache('public:categories', PUBLIC_DIRECTORY_TTL_MS, async () => {
+      try {
+        const { data, error } = await this.client
+          .from('categories')
+          .select('*, category_aliases(alias)')
+          .eq('is_visible', true)
+          .order('sort_order', { ascending: true });
+        if (error || !data) return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
+        return data.map((c: any) => ({
+          ...c,
+          aliases: Array.isArray(c.category_aliases)
+            ? c.category_aliases.map((a: any) => a.alias)
+            : (c.aliases || []),
+        }));
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getCategories(), 'category lookup');
+      }
+    });
   }
 
   async getCategoryBySlug(slug: string): Promise<Category | null> {
-    try {
-      const { data, error } = await this.client
-        .from('categories')
-        .select('*, category_aliases(alias)')
-        .eq('slug', slug)
-        .eq('is_visible', true)
-        .maybeSingle();
-      if (error || !data) return this.fallbackOrThrow(() => this.fallback.getCategoryBySlug(slug), 'category lookup');
-      return {
-        ...data,
-        aliases: Array.isArray(data.category_aliases)
-          ? data.category_aliases.map((a: any) => a.alias)
-          : (data.aliases || []),
-      };
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getCategoryBySlug(slug), 'category lookup');
-    }
+    const categories = await this.getCategories();
+    return categories.find((category) => category.slug === slug) || null;
   }
 
   async getRotatedProviders(talukaId: string, categoryId: string, date: Date = new Date()): Promise<RotatedProviderItem[]> {
-    try {
-      const client = this.getPrivilegedClient();
-      const { data, error } = await client.rpc('get_active_rotated_providers', {
-        p_taluka_id: talukaId,
-        p_category_id: categoryId,
-        p_target_timestamp: date.toISOString(),
-      });
-      if (error || !data) {
+    const dayKey = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    return readThroughCache(`public:providers:${talukaId}:${categoryId}:${dayKey}`, PUBLIC_PROVIDER_TTL_MS, async () => {
+      try {
+        const client = this.getPrivilegedClient();
+        const { data, error } = await client.rpc('get_active_rotated_providers', {
+          p_taluka_id: talukaId,
+          p_category_id: categoryId,
+          p_target_timestamp: date.toISOString(),
+        });
+        if (error || !data) {
+          return this.fallbackOrThrow(() => this.fallback.getRotatedProviders(talukaId, categoryId, date), 'provider rotation lookup');
+        }
+        return data.map((item: any) => ({
+          ...item,
+          first_activated_at: item.first_activated_at || null,
+          display_order: Number(item.display_order),
+        })) as RotatedProviderItem[];
+      } catch {
         return this.fallbackOrThrow(() => this.fallback.getRotatedProviders(talukaId, categoryId, date), 'provider rotation lookup');
       }
-      return data.map((item: any) => ({
-        ...item,
-        first_activated_at: item.first_activated_at || null,
-        display_order: Number(item.display_order),
-      })) as RotatedProviderItem[];
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getRotatedProviders(talukaId, categoryId, date), 'provider rotation lookup');
-    }
+    });
   }
 
   async getProviderBySlug(slug: string): Promise<any> {
-    try {
+    return readThroughCache(`public:provider:${slug}`, PUBLIC_PROVIDER_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data: vendor, error: vendorError } = await client
         .from('vendors')
@@ -2002,53 +2043,58 @@ export class SupabaseDataRepository implements DataRepository {
         && vendor.is_publicly_visible
         && listings.some((listing: any) => Boolean(listing.subscription || listing.current_trial));
 
-      return {
-        vendor,
-        listings,
-        serviceAreas: (areasResult.data || []).map((area: any) => ({
-          name_en: area.area_name_en,
-          name_mr: area.area_name_mr,
-        })),
-        isEligible,
-      };
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider lookup');
-    }
+        return {
+          vendor,
+          listings,
+          serviceAreas: (areasResult.data || []).map((area: any) => ({
+            name_en: area.area_name_en,
+            name_mr: area.area_name_mr,
+          })),
+          isEligible,
+        };
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getProviderBySlug(slug), 'provider lookup');
+      }
+    });
   }
 
   async getDirectoryPageSettings(talukaId: string, categoryId: string): Promise<DirectoryPageSettings | null> {
-    try {
-      const client = this.getPrivilegedClient();
-      const { data, error } = await client
-        .from('directory_page_settings')
-        .select('*')
-        .eq('taluka_id', talukaId)
-        .eq('category_id', categoryId)
-        .eq('is_enabled', true)
-        .maybeSingle();
-      if (error) {
+    return readThroughCache(`public:directory-settings:${talukaId}:${categoryId}`, PUBLIC_DIRECTORY_TTL_MS, async () => {
+      try {
+        const client = this.getPrivilegedClient();
+        const { data, error } = await client
+          .from('directory_page_settings')
+          .select('*')
+          .eq('taluka_id', talukaId)
+          .eq('category_id', categoryId)
+          .eq('is_enabled', true)
+          .maybeSingle();
+        if (error) {
+          return this.fallbackOrThrow(() => this.fallback.getDirectoryPageSettings(talukaId, categoryId), 'directory SEO settings lookup');
+        }
+        return data;
+      } catch {
         return this.fallbackOrThrow(() => this.fallback.getDirectoryPageSettings(talukaId, categoryId), 'directory SEO settings lookup');
       }
-      return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getDirectoryPageSettings(talukaId, categoryId), 'directory SEO settings lookup');
-    }
+    });
   }
 
   async getSiteSettings(): Promise<SiteSettings> {
-    try {
-      const { data, error } = await this.client
-        .from('site_settings')
-        .select('id, annual_listing_price, max_active_providers_per_taluka_category, seo_min_active_providers, support_mobile, support_whatsapp, business_email')
-        .eq('id', 1)
-        .single();
-      if (error || !data) {
+    return readThroughCache('public:site-settings', PUBLIC_DIRECTORY_TTL_MS, async () => {
+      try {
+        const { data, error } = await this.client
+          .from('site_settings')
+          .select('id, annual_listing_price, max_active_providers_per_taluka_category, seo_min_active_providers, support_mobile, support_whatsapp, business_email')
+          .eq('id', 1)
+          .single();
+        if (error || !data) {
+          return this.fallbackOrThrow(() => this.fallback.getSiteSettings(), 'site settings lookup');
+        }
+        return data as SiteSettings;
+      } catch {
         return this.fallbackOrThrow(() => this.fallback.getSiteSettings(), 'site settings lookup');
       }
-      return data as SiteSettings;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getSiteSettings(), 'site settings lookup');
-    }
+    });
   }
 
   async getIndexableDirectoryRoutes(): Promise<IndexableDirectoryRoute[]> {
@@ -2099,6 +2145,7 @@ export class SupabaseDataRepository implements DataRepository {
         await client.from('vendor_applications').delete().eq('id', res.id);
         return this.fallbackOrThrow(() => this.fallback.submitVendorApplication(data), 'application category submission');
       }
+      clearAdminReadCache();
       return { id: res.id, success: true };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.submitVendorApplication(data), 'application submission');
@@ -2172,6 +2219,8 @@ export class SupabaseDataRepository implements DataRepository {
         throw listingsError || new Error('Could not create vendor listings.');
       }
 
+      clearRuntimeReadCache('public:providers:', 'public:provider:');
+      clearAdminReadCache();
       return { success: true, vendor: vendor as Vendor, listings: listings as VendorListing[] };
     } catch (error) {
       if (this.production) {
@@ -2192,7 +2241,8 @@ export class SupabaseDataRepository implements DataRepository {
   }
 
   async getAdminMetrics() {
-    try {
+    return readThroughCache('admin:metrics', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const [vendors, listings, applications, payments, trials, subscriptions] = await Promise.all([
         client.from('vendors').select('*', { count: 'exact', head: true }),
@@ -2221,13 +2271,15 @@ export class SupabaseDataRepository implements DataRepository {
         pendingApplications: applications.count || 0,
         totalRevenue: (payments.data || []).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0),
       };
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAdminMetrics(), 'admin metrics lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAdminMetrics(), 'admin metrics lookup');
+      }
+    });
   }
 
   async getAdminTrialMetrics(): Promise<AdminTrialMetrics> {
-    try {
+    return readThroughCache('admin:trial-metrics', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const [trials, subscriptions] = await Promise.all([
         client.from('listing_trials').select('starts_at, ends_at, status'),
@@ -2258,13 +2310,15 @@ export class SupabaseDataRepository implements DataRepository {
         upcomingRenewals15Days: countWithin(activeSubscriptions, 15),
         upcomingRenewals7Days: countWithin(activeSubscriptions, 7),
       };
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAdminTrialMetrics(), 'trial metrics lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAdminTrialMetrics(), 'trial metrics lookup');
+      }
+    });
   }
 
   async getAdminVendors() {
-    try {
+    return readThroughCache('admin:vendors', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const [vendors, listings, subscriptions, trials] = await Promise.all([
         client.from('vendors').select('*').order('created_at', { ascending: false }),
@@ -2302,13 +2356,15 @@ export class SupabaseDataRepository implements DataRepository {
           };
         }),
       }));
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');
+      }
+    });
   }
 
   async getAdminApplications(): Promise<VendorApplication[]> {
-    try {
+    return readThroughCache('admin:applications', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data, error } = await client
         .from('vendor_applications')
@@ -2316,9 +2372,10 @@ export class SupabaseDataRepository implements DataRepository {
         .order('created_at', { ascending: false });
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAdminApplications(), 'admin application lookup');
       return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAdminApplications(), 'admin application lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAdminApplications(), 'admin application lookup');
+      }
+    });
   }
 
   async startTrial(params: any) {
@@ -2336,6 +2393,10 @@ export class SupabaseDataRepository implements DataRepository {
       if (result.success && result.trial_id) {
         const { data: trial } = await client.from('listing_trials').select('*').eq('id', result.trial_id).maybeSingle();
         result.trial = trial || undefined;
+      }
+      if (result.success) {
+        clearRuntimeReadCache('public:providers:', 'public:provider:');
+        clearAdminReadCache();
       }
       return result;
     } catch {
@@ -2364,6 +2425,10 @@ export class SupabaseDataRepository implements DataRepository {
       if (result.success && result.subscription_id) {
         const { data: subscription } = await client.from('subscriptions').select('*').eq('id', result.subscription_id).maybeSingle();
         result.subscription = subscription || undefined;
+      }
+      if (result.success) {
+        clearRuntimeReadCache('public:providers:', 'public:provider:');
+        clearAdminReadCache();
       }
       return result;
     } catch {
@@ -2508,14 +2573,51 @@ export class SupabaseDataRepository implements DataRepository {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', vendorId);
       if (error) return this.fallbackOrThrow(() => this.fallback.updateVendorProfile(vendorId, updates), 'vendor profile update');
+      clearRuntimeReadCache('public:providers:', 'public:provider:');
+      clearAdminReadCache();
       return { success: true };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.updateVendorProfile(vendorId, updates), 'vendor profile update');
     }
   }
 
-  async getPayments(): Promise<Payment[]> {
+  async deleteVendor(vendorId: string): Promise<{ success: boolean; error?: string }> {
     try {
+      const client = this.getPrivilegedClient();
+      const { data: listings, error: listingsError } = await client
+        .from('vendor_listings')
+        .select('id')
+        .eq('vendor_id', vendorId);
+      if (listingsError) throw listingsError;
+
+      const listingIds = (listings || []).map(listing => listing.id);
+      const { error: paymentsError } = await client.from('payments').delete().eq('vendor_id', vendorId);
+      if (paymentsError) throw paymentsError;
+
+      if (listingIds.length) {
+        const { error: trialsError } = await client.from('listing_trials').delete().in('vendor_listing_id', listingIds);
+        if (trialsError) throw trialsError;
+        const { error: reportsError } = await client.from('vendor_report_snapshots').delete().in('vendor_listing_id', listingIds);
+        if (reportsError) throw reportsError;
+        const { error: subscriptionsError } = await client.from('subscriptions').delete().in('vendor_listing_id', listingIds);
+        if (subscriptionsError) throw subscriptionsError;
+        const { error: listingError } = await client.from('vendor_listings').delete().in('id', listingIds);
+        if (listingError) throw listingError;
+      }
+
+      const { error: vendorError } = await client.from('vendors').delete().eq('id', vendorId);
+      if (vendorError) throw vendorError;
+      clearRuntimeReadCache('public:providers:', 'public:provider:');
+      clearAdminReadCache();
+      return { success: true };
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.deleteVendor(vendorId), 'vendor deletion');
+    }
+  }
+
+  async getPayments(): Promise<Payment[]> {
+    return readThroughCache('admin:payments', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data, error } = await client
         .from('payments')
@@ -2523,13 +2625,15 @@ export class SupabaseDataRepository implements DataRepository {
         .order('created_at', { ascending: false });
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.getPayments(), 'payment lookup');
       return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getPayments(), 'payment lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getPayments(), 'payment lookup');
+      }
+    });
   }
 
   async getAllDistrictsAdmin(): Promise<District[]> {
-    try {
+    return readThroughCache('admin:districts', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data, error } = await client
         .from('districts')
@@ -2537,13 +2641,15 @@ export class SupabaseDataRepository implements DataRepository {
         .order('sort_order', { ascending: true });
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAllDistrictsAdmin(), 'admin district lookup');
       return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAllDistrictsAdmin(), 'admin district lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAllDistrictsAdmin(), 'admin district lookup');
+      }
+    });
   }
 
   async getAllTalukasAdmin(): Promise<(Taluka & { district?: District })[]> {
-    try {
+    return readThroughCache('admin:talukas', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data, error } = await client
         .from('talukas')
@@ -2551,13 +2657,15 @@ export class SupabaseDataRepository implements DataRepository {
         .order('sort_order', { ascending: true });
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.getAllTalukasAdmin(), 'admin taluka lookup');
       return data;
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAllTalukasAdmin(), 'admin taluka lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAllTalukasAdmin(), 'admin taluka lookup');
+      }
+    });
   }
 
   async getAllCategoriesAdmin(): Promise<Category[]> {
-    try {
+    return readThroughCache('admin:categories', ADMIN_READ_TTL_MS, async () => {
+      try {
       const client = this.getPrivilegedClient();
       const { data, error } = await client
         .from('categories')
@@ -2570,9 +2678,10 @@ export class SupabaseDataRepository implements DataRepository {
           ? c.category_aliases.map((a: any) => a.alias)
           : (c.aliases || []),
       }));
-    } catch {
-      return this.fallbackOrThrow(() => this.fallback.getAllCategoriesAdmin(), 'admin category lookup');
-    }
+      } catch {
+        return this.fallbackOrThrow(() => this.fallback.getAllCategoriesAdmin(), 'admin category lookup');
+      }
+    });
   }
 
   async addDistrict(district: Omit<District, 'id' | 'created_at' | 'updated_at'>): Promise<District> {
@@ -2584,6 +2693,8 @@ export class SupabaseDataRepository implements DataRepository {
         .select()
         .single();
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.addDistrict(district), 'district creation');
+      clearRuntimeReadCache('public:districts:', 'public:talukas:');
+      clearAdminReadCache();
       return data;
     } catch {
       return this.fallbackOrThrow(() => this.fallback.addDistrict(district), 'district creation');
@@ -2598,6 +2709,8 @@ export class SupabaseDataRepository implements DataRepository {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) return this.fallbackOrThrow(() => this.fallback.updateDistrict(id, updates), 'district update');
+      clearRuntimeReadCache('public:districts:', 'public:talukas:');
+      clearAdminReadCache();
       return { success: true };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.updateDistrict(id, updates), 'district update');
@@ -2613,6 +2726,8 @@ export class SupabaseDataRepository implements DataRepository {
         .select()
         .single();
       if (error || !data) return this.fallbackOrThrow(() => this.fallback.addTaluka(taluka), 'taluka creation');
+      clearRuntimeReadCache('public:talukas:', 'public:providers:', 'public:directory-settings:');
+      clearAdminReadCache();
       return data;
     } catch {
       return this.fallbackOrThrow(() => this.fallback.addTaluka(taluka), 'taluka creation');
@@ -2627,6 +2742,8 @@ export class SupabaseDataRepository implements DataRepository {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) return this.fallbackOrThrow(() => this.fallback.updateTaluka(id, updates), 'taluka update');
+      clearRuntimeReadCache('public:talukas:', 'public:providers:', 'public:directory-settings:');
+      clearAdminReadCache();
       return { success: true };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.updateTaluka(id, updates), 'taluka update');
@@ -2647,6 +2764,8 @@ export class SupabaseDataRepository implements DataRepository {
         const aliasInserts = aliases.map(a => ({ category_id: data.id, alias: a.trim() }));
         await client.from('category_aliases').insert(aliasInserts);
       }
+      clearRuntimeReadCache('public:categories:', 'public:providers:', 'public:directory-settings:');
+      clearAdminReadCache();
       return { ...data, aliases: aliases || [] };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.addCategory(category), 'category creation');
@@ -2669,9 +2788,32 @@ export class SupabaseDataRepository implements DataRepository {
           await client.from('category_aliases').insert(aliasInserts);
         }
       }
+      clearRuntimeReadCache('public:categories:', 'public:providers:', 'public:directory-settings:');
+      clearAdminReadCache();
       return { success: true };
     } catch {
       return this.fallbackOrThrow(() => this.fallback.updateCategory(id, updates), 'category update');
+    }
+  }
+
+  async deleteCategory(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const client = this.getPrivilegedClient();
+      const [listingsResult, applicationsResult] = await Promise.all([
+        client.from('vendor_listings').select('id', { count: 'exact', head: true }).eq('category_id', id),
+        client.from('vendor_application_items').select('id', { count: 'exact', head: true }).eq('category_id', id),
+      ]);
+      if (listingsResult.error || applicationsResult.error) throw listingsResult.error || applicationsResult.error;
+      if ((listingsResult.count || 0) > 0 || (applicationsResult.count || 0) > 0) {
+        return { success: false, error: 'This category is in use. Delete or move its vendor listings and applications first.' };
+      }
+      const { error } = await client.from('categories').delete().eq('id', id);
+      if (error) throw error;
+      clearRuntimeReadCache('public:categories:', 'public:providers:', 'public:directory-settings:');
+      clearAdminReadCache();
+      return { success: true };
+    } catch {
+      return this.fallbackOrThrow(() => this.fallback.deleteCategory(id), 'category deletion');
     }
   }
 }

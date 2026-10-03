@@ -126,7 +126,7 @@ const breadcrumbSchema = {
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
     
     <!-- Breadcrumbs -->
-    <nav class="flex items-center gap-2 text-xs sm:text-sm text-ink-muted mb-6 flex-wrap" aria-label="Breadcrumb">
+    <nav class="flex items-center gap-2 overflow-x-auto whitespace-nowrap py-1 text-xs sm:text-sm text-ink-muted mb-6" aria-label="Breadcrumb">
       <a href={`/${safeLocale}`} class="hover:text-brand-600 transition-colors">
         {dict.directory.breadcrumbsHome}
       </a>
@@ -164,13 +164,11 @@ const breadcrumbSchema = {
             {talukaName} {isMr ? 'मधील' : 'in'} {categoryName}
           </h1>
 
-          <p class="mt-2 text-xs sm:text-sm text-ink-secondary leading-relaxed max-w-3xl">
-            {dirSettings && (isMr ? dirSettings.intro_mr : dirSettings.intro_en)
-              ? (isMr ? dirSettings.intro_mr : dirSettings.intro_en)
-              : (isMr
-                ? `${talukaName} परिसरातील पात्र आणि पडताळणी झालेले ${categoryName}. कोणत्याही मध्यस्थाशिवाय थेट संपर्क साधा.`
-                : `Verified ${categoryName} service providers operating in and around ${talukaName}. Contact directly without platform fees.`)}
-          </p>
+          {dirSettings && (isMr ? dirSettings.intro_mr : dirSettings.intro_en) && (
+            <p class="mt-2 text-xs sm:text-sm text-ink-secondary leading-relaxed max-w-3xl">
+              {isMr ? dirSettings.intro_mr : dirSettings.intro_en}
+            </p>
+          )}
         </div>
 
         <a
@@ -182,14 +180,6 @@ const breadcrumbSchema = {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
         </a>
-      </div>
-
-      <!-- Fair Rotation Notice -->
-      <div class="mt-4 pt-4 border-t border-surface-border flex items-center gap-2 text-[11px] sm:text-xs text-ink-muted">
-        <svg class="w-4 h-4 text-brand-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        <span>{dict.directory.dailyRotationNote}</span>
       </div>
     </div>
 

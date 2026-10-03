@@ -59,6 +59,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
+    if (action === 'delete') {
+      if (!id || typeof id !== 'string') throw new Error('Category ID is required for deletion');
+      const result = await repo.deleteCategory(id);
+      return new Response(JSON.stringify(result), {
+        status: result.success ? 200 : 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ success: false, error: 'Invalid action' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },

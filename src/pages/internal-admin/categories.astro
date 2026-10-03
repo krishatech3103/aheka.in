@@ -123,12 +123,21 @@ const categories = await repo.getAllCategoriesAdmin();
                       </span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                      <button
-                        class="btn-edit-cat px-3 py-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg border border-brand-200 dark:border-brand-800 transition cursor-pointer"
-                        data-cat={JSON.stringify(cat)}
-                      >
-                        Edit
-                      </button>
+                      <div class="inline-flex items-center gap-2">
+                        <button
+                          class="btn-edit-cat px-3 py-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg border border-brand-200 dark:border-brand-800 transition cursor-pointer"
+                          data-cat={JSON.stringify(cat)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          class="btn-delete-cat px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+                          data-cat-id={cat.id}
+                          data-cat-name={cat.name_en}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -248,6 +257,29 @@ const categories = await repo.getAllCategoriesAdmin();
 
       document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
       document.getElementById('btn-cancel')?.addEventListener('click', closeModal);
+
+      document.querySelectorAll<HTMLButtonElement>('.btn-delete-cat').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const id = button.dataset.catId;
+          const name = button.dataset.catName || 'this category';
+          if (!id || !confirm(`Delete ${name} permanently? This cannot be undone.`)) return;
+          try {
+            const response = await fetch('/' + adminEntryPath + '/api/manage-category', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'delete', id }),
+            });
+            const result = await response.json();
+            if (!result.success) {
+              alert(result.error || 'Could not delete category.');
+              return;
+            }
+            window.location.reload();
+          } catch (error) {
+            alert(error instanceof Error ? error.message : 'Could not delete category.');
+          }
+        });
+      });
 
       form?.addEventListener('submit', async (e) => {
         e.preventDefault();

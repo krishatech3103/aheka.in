@@ -1,6 +1,11 @@
-import React, { useState, useId } from 'react';
-import { Search, MapPin, ArrowRight, ChevronDown } from 'lucide-react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { ArrowRight, MapPin, Search } from 'lucide-react';
 import { getDictionary, type Locale } from '../lib/i18n';
+import {
+  LOCATION_PREFERENCE_EVENT,
+  readLocationPreference,
+  type LocationPreference,
+} from '../lib/location/preference';
 
 interface SearchCategory {
   slug: string;
@@ -23,108 +28,118 @@ interface SearchIslandProps {
   locale: Locale;
   categories: SearchCategory[];
   talukas: SearchTaluka[];
-  defaultDistrictSlug?: string;
-  defaultTalukaSlug?: string;
 }
 
-export default function SearchIsland({
-  locale,
-  categories,
-  talukas,
-  defaultDistrictSlug,
-  defaultTalukaSlug,
-}: SearchIslandProps) {
-  const initialTaluka = defaultTalukaSlug
-    ? (talukas.find((t) => t.slug === defaultTalukaSlug) || talukas[0])
-    : talukas[0];
+function openLocationDialog() {
+  (document.getElementById('location-dialog') as HTMLDialogElement | null)?.showModal();
+}
 
+export default function SearchIsland({ locale, categories, talukas }: SearchIslandProps) {
   const [query, setQuery] = useState('');
-  const [selectedTalukaSlug, setSelectedTalukaSlug] = useState(initialTaluka?.slug || '');
+  const [location, setLocation] = useState<LocationPreference | null>(null);
+  const [selectionError, setSelectionError] = useState('');
   const inputId = useId();
-
   const isMr = locale === 'mr';
-  const locationLabels = getDictionary(locale).locationDetection;
+  const dict = getDictionary(locale);
+
+  const activeTaluka = useMemo(() => {
+    if (!location) return null;
+    return talukas.find((taluka) => (
+      taluka.district_slug === location.districtSlug && taluka.slug === location.talukaSlug
+    )) || null;
+  }, [location, talukas]);
+
+  useEffect(() => {
+    const applyLocation = (candidate: LocationPreference | null) => {
+      if (!candidate) {
+        setLocation(null);
+        return;
+      }
+      const isValid = talukas.some((taluka) => (
+        taluka.district_slug === candidate.districtSlug && taluka.slug === candidate.talukaSlug
+      ));
+      setLocation(isValid ? candidate : null);
+    };
+
+    applyLocation(readLocationPreference());
+    const onLocationChange = (event: Event) => {
+      applyLocation((event as CustomEvent<LocationPreference>).detail || null);
+      setSelectionError('');
+    };
+    window.addEventListener(LOCATION_PREFERENCE_EVENT, onLocationChange);
+    return () => window.removeEventListener(LOCATION_PREFERENCE_EVENT, onLocationChange);
+  }, [talukas]);
 
   const cleanQuery = query.toLowerCase().trim();
   const filteredCategories = cleanQuery
     ? categories.filter((cat) => {
-        const nameMr = cat.name_mr.toLowerCase();
-        const nameEn = cat.name_en.toLowerCase();
-        const slug = cat.slug.toLowerCase();
         const aliases = cat.aliases || [];
-
-        return (
-          nameMr.includes(cleanQuery) ||
-          nameEn.includes(cleanQuery) ||
-          slug.includes(cleanQuery) ||
-          aliases.some((a) => a.toLowerCase().includes(cleanQuery) || cleanQuery.includes(a.toLowerCase()))
-        );
+        return cat.name_mr.toLowerCase().includes(cleanQuery)
+          || cat.name_en.toLowerCase().includes(cleanQuery)
+          || cat.slug.toLowerCase().includes(cleanQuery)
+          || aliases.some((alias) => alias.toLowerCase().includes(cleanQuery) || cleanQuery.includes(alias.toLowerCase()));
       })
     : [];
 
-  const activeTaluka = talukas.find((t) => t.slug === selectedTalukaSlug) || talukas[0];
+  const locationName = activeTaluka
+    ? `${isMr ? activeTaluka.name_mr : activeTaluka.name_en} (${isMr ? activeTaluka.district_name_mr : activeTaluka.district_name_en})`
+    : '';
 
-  const handleSelectCategory = (catSlug: string) => {
+  const handleSelectCategory = (categorySlug: string) => {
     if (!activeTaluka) return;
-    window.location.href = `/${locale}/${activeTaluka.district_slug}/${activeTaluka.slug}/${catSlug}`;
+    window.location.href = `/${locale}/${activeTaluka.district_slug}/${activeTaluka.slug}/${categorySlug}`;
   };
 
   const handleSearchSubmit = () => {
+    if (!activeTaluka) {
+      setSelectionError(isMr ? 'शोधण्यापूर्वी तुमचे ठिकाण निवडा.' : 'Choose your location before searching.');
+      openLocationDialog();
+      return;
+    }
     if (filteredCategories.length > 0) {
       handleSelectCategory(filteredCategories[0].slug);
-    } else if (activeTaluka) {
-      window.location.href = `/${locale}/${activeTaluka.district_slug}/${activeTaluka.slug}`;
+      return;
     }
+    window.location.href = `/${locale}/${activeTaluka.district_slug}/${activeTaluka.slug}`;
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
       handleSearchSubmit();
     }
   };
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      {/* Search Bar Container */}
-      <div className="bg-white dark:bg-ink-surface rounded-2xl shadow-lift border border-surface-border p-2 sm:p-2.5 transition-all duration-200 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500">
-        <div className="flex flex-col sm:flex-row items-stretch gap-2">
-          
-          {/* Taluka Selector Dropdown (Desktop: Left | Mobile: Top) */}
-          <div className="relative flex items-center min-w-full sm:min-w-[190px] sm:max-w-[220px] border-b sm:border-b-0 sm:border-r border-surface-border pb-2 sm:pb-0 sm:pr-2">
-            <MapPin className="w-4 h-4 text-brand-600 ml-2.5 mr-1 flex-shrink-0" />
-            <select
-              aria-label={isMr ? 'तालुका निवडा' : 'Select Taluka'}
-              value={selectedTalukaSlug}
-              onChange={(e) => setSelectedTalukaSlug(e.target.value)}
-              className="w-full bg-transparent text-xs sm:text-sm font-semibold text-ink-primary py-2.5 px-1 pr-6 focus:outline-none cursor-pointer truncate appearance-none"
-            >
-              {talukas.length === 0 ? (
-                <option value="">{isMr ? 'तालुका उपलब्ध नाही' : 'No talukas available'}</option>
-              ) : (
-                talukas.map((t) => (
-                  (() => {
-                    const districtName = isMr ? t.district_name_mr : t.district_name_en;
-                    const talukaName = isMr ? t.name_mr : t.name_en;
-                    return (
-                      <option
-                        key={t.slug}
-                        value={t.slug}
-                        className="bg-white dark:bg-ink-surface text-ink-primary font-medium"
-                      >
-                        {districtName ? `${talukaName} (${districtName})` : talukaName}
-                      </option>
-                    );
-                  })()
-                ))
-              )}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-ink-muted absolute right-3 pointer-events-none" />
+      <div className="rounded-3xl border border-surface-border bg-white/95 p-3 shadow-lift dark:bg-ink-surface/95 sm:p-4">
+        <div className="flex flex-col gap-3 rounded-2xl bg-surface-canvas/70 p-3 dark:bg-ink-canvas/30 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300">
+              <MapPin className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 text-left">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                {isMr ? 'तुमचे ठिकाण' : 'Your location'}
+              </p>
+              <p className="truncate text-sm font-bold text-ink-primary">
+                {locationName || (isMr ? 'सेवा शोधण्यासाठी ठिकाण निवडा' : 'Choose a location to find services')}
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={openLocationDialog}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3.5 py-2.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-50 dark:border-brand-800 dark:bg-ink-surface dark:text-brand-300 dark:hover:bg-brand-950/40"
+          >
+            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+            {activeTaluka ? dict.nav.changeLocation : dict.nav.chooseLocation}
+          </button>
+        </div>
 
-          {/* Service Search Input (Desktop: Middle | Mobile: Middle) */}
-          <div className="relative flex-1 flex items-center min-h-[44px]">
-            <Search className="w-5 h-5 text-ink-muted ml-2 mr-2 flex-shrink-0" />
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex min-h-[54px] min-w-0 flex-1 items-center rounded-xl border border-surface-border bg-white dark:bg-ink-canvas/30">
+            <Search className="ml-4 mr-2 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
             <input
               id={inputId}
               type="search"
@@ -133,69 +148,51 @@ export default function SearchIsland({
               aria-controls="search-suggestions-list"
               aria-autocomplete="list"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={
-                isMr
-                  ? 'काय सेवा पाहिजे? (उदा. प्लंबर, वायरमन...)'
-                  : 'What service do you need? (e.g. Plumber, Electrician...)'
-              }
-              className="w-full bg-transparent text-sm sm:text-base text-ink-primary placeholder-ink-muted py-2 pr-2 focus:outline-none"
+              placeholder={dict.home.searchPlaceholder}
+              className="w-full bg-transparent py-3 pr-3 text-sm text-ink-primary placeholder-ink-muted outline-none sm:text-base"
             />
           </div>
-
-          {/* Search Button (Desktop: Right | Mobile: Bottom Full Width) */}
           <button
             type="button"
             onClick={handleSearchSubmit}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold text-sm sm:text-base px-6 py-3 rounded-xl transition-all shadow-sm hover:shadow-md flex-shrink-0"
+            className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-brand-700 hover:shadow-md active:bg-brand-800 sm:min-w-32"
           >
-            <span>{isMr ? 'शोधा' : 'Search'}</span>
-            <ArrowRight className="w-4 h-4" />
+            <span>{dict.home.searchButton}</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => (document.getElementById('location-dialog') as HTMLDialogElement | null)?.showModal()}
-        className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/50 border border-brand-200 dark:border-brand-800 hover:bg-brand-100 dark:hover:bg-brand-950 transition-colors"
-      >
-        <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
-        <span>{locationLabels.useMyLocation}</span>
-      </button>
+      {selectionError && (
+        <p role="status" aria-live="polite" className="mt-3 text-center text-xs font-medium text-rose-700 dark:text-rose-300">
+          {selectionError}
+        </p>
+      )}
 
-      {/* Instant Suggestions Dropdown */}
       {filteredCategories.length > 0 && activeTaluka && (
-        <div
-          id="search-suggestions-list"
-          role="listbox"
-          className="mt-2 bg-white dark:bg-ink-surface rounded-2xl shadow-lift border border-surface-border overflow-hidden z-30 transition-all text-left"
-        >
-          <div className="px-4 py-2.5 bg-surface-canvas/60 border-b border-surface-border text-xs font-semibold text-ink-muted uppercase tracking-wider">
+        <div id="search-suggestions-list" role="listbox" className="mt-3 overflow-hidden rounded-2xl border border-surface-border bg-white text-left shadow-lift dark:bg-ink-surface">
+          <div className="border-b border-surface-border bg-surface-canvas/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
             {isMr ? 'उपलब्ध सेवा' : 'Matching Services'}
           </div>
           <div className="divide-y divide-surface-border">
-            {filteredCategories.slice(0, 6).map((cat) => (
+            {filteredCategories.slice(0, 6).map((category) => (
               <button
-                key={cat.slug}
+                key={category.slug}
                 role="option"
                 aria-selected="false"
                 type="button"
-                onClick={() => handleSelectCategory(cat.slug)}
-                className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors group"
+                onClick={() => handleSelectCategory(category.slug)}
+                className="group flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors hover:bg-brand-50 dark:hover:bg-brand-950/40"
               >
                 <div>
-                  <div className="font-bold text-sm sm:text-base text-ink-primary group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
-                    {isMr ? cat.name_mr : cat.name_en}
+                  <div className="text-sm font-bold text-ink-primary transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400 sm:text-base">
+                    {isMr ? category.name_mr : category.name_en}
                   </div>
-                  <div className="text-xs text-ink-muted mt-0.5">
-                    <span className="text-brand-700 dark:text-brand-400 font-medium">
-                      {isMr ? activeTaluka.name_mr : activeTaluka.name_en}
-                    </span>
-                  </div>
+                  <div className="mt-0.5 text-xs text-brand-700 dark:text-brand-400">{locationName}</div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-brand-600 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="h-4 w-4 text-brand-600 transition-transform group-hover:translate-x-1" />
               </button>
             ))}
           </div>

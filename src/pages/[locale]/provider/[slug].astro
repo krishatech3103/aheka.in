@@ -146,24 +146,24 @@ const breadcrumbSchema = {
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
     
     <!-- Breadcrumbs -->
-    <nav class="flex items-center gap-2 text-xs sm:text-sm text-ink-muted mb-6 flex-wrap" aria-label="Breadcrumb">
-      <a href={`/${safeLocale}`} class="hover:text-brand-600 transition-colors">
+    <nav class="flex items-center gap-2 overflow-x-auto whitespace-nowrap py-1 text-xs sm:text-sm text-ink-muted mb-6" aria-label="Breadcrumb">
+      <a href={`/${safeLocale}`} class="shrink-0 hover:text-brand-600 transition-colors">
         {dict.directory.breadcrumbsHome}
       </a>
       {primaryListing && districtSlug && (
         <>
-          <span>/</span>
-          <a href={`/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}`} class="hover:text-brand-600 transition-colors">
+          <span class="shrink-0">/</span>
+          <a href={`/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}`} class="shrink-0 hover:text-brand-600 transition-colors">
             {talukaName}
           </a>
-          <span>/</span>
-          <a href={`/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}/${primaryListing.category.slug}`} class="hover:text-brand-600 transition-colors">
+          <span class="shrink-0">/</span>
+          <a href={`/${safeLocale}/${districtSlug}/${primaryListing.taluka.slug}/${primaryListing.category.slug}`} class="shrink-0 hover:text-brand-600 transition-colors">
             {primaryCategoryName}
           </a>
         </>
       )}
-      <span>/</span>
-      <span class="text-ink-primary font-medium truncate">
+      <span class="shrink-0">/</span>
+      <span class="shrink-0 text-ink-primary font-medium">
         {vendor.provider_name}
       </span>
     </nav>
@@ -258,7 +258,7 @@ const breadcrumbSchema = {
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
           </svg>
-          <span>{dict.actions.callNow} ({vendor.mobile})</span>
+          <span>{dict.actions.callNow}</span>
         </a>
 
         <!-- WhatsApp Button -->

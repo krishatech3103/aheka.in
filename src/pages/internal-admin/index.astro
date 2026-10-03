@@ -4,7 +4,7 @@ import ThemeInitScript from '../../components/ThemeInitScript.astro';
 import ThemeToggle from '../../components/ThemeToggle.astro';
 import LogoIcon from '../../components/LogoIcon.astro';
 import { getDataRepository } from '../../lib/repositories/dataRepository';
-import { getRemainingDays } from '../../lib/business/slotEnforcement';
+import { getRemainingDays, isSubscriptionActive, isTrialActive } from '../../lib/business/slotEnforcement';
 
 const adminEntryPath = Astro.locals.adminEntryPath || process.env.ADMIN_ENTRY_PATH || 'local-admin';
 
@@ -14,14 +14,60 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const [metrics, trialMetrics, applications, vendors] = await Promise.all([
-  repo.getAdminMetrics(),
-  repo.getAdminTrialMetrics(),
+// One vendor dataset already contains listings, trials, and subscriptions.
+// Deriving dashboard counts from it avoids repeating those Supabase reads.
+const [applications, vendors, payments] = await Promise.all([
   repo.getAdminApplications(),
   repo.getAdminVendors(),
+  repo.getPayments(),
 ]);
 
 const now = new Date();
+const allListings = vendors.flatMap((vendor) => vendor.listings);
+const activeTrialListings = allListings.filter((listing) => (
+  Boolean(listing.current_trial && isTrialActive(listing.current_trial, now))
+));
+const activeSubscriptionListings = allListings.filter((listing) => (
+  Boolean(listing.subscription && isSubscriptionActive(listing.subscription, now))
+));
+const activeSubscriptions = activeSubscriptionListings.flatMap((listing) => (
+  listing.subscription ? [listing.subscription] : []
+));
+const activeListingIds = new Set([
+  ...activeTrialListings.map((listing) => listing.id),
+  ...activeSubscriptionListings.map((listing) => listing.id),
+]);
+const allTrials = allListings.flatMap((listing) => listing.trials || []);
+const activeTrials = allTrials.filter((trial) => isTrialActive(trial, now));
+const countExpiringWithin = (records: Array<{ ends_at: string }>, days: number) => records.filter((record) => {
+  const remaining = new Date(record.ends_at).getTime() - now.getTime();
+  return remaining > 0 && remaining <= days * 86_400_000;
+}).length;
+const expiredUnpaidTrials = allTrials.filter((trial) => (
+  trial.status === 'expired' || (trial.status === 'active' && new Date(trial.ends_at).getTime() <= now.getTime())
+)).length;
+const convertedTrials = allTrials.filter((trial) => trial.status === 'converted').length;
+const completedTrials = convertedTrials + expiredUnpaidTrials;
+const metrics = {
+  totalVendors: vendors.length,
+  activeListings: activeListingIds.size,
+  activeTrials: activeTrials.length,
+  waitlistedListings: allListings.filter((listing) => listing.approval_status === 'waitlisted').length,
+  pendingApplications: applications.filter((application) => application.status === 'pending').length,
+  totalRevenue: payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+};
+const trialMetrics = {
+  activeTrials: activeTrials.length,
+  trialsExpiring7Days: countExpiringWithin(activeTrials, 7),
+  trialsExpiring3Days: countExpiringWithin(activeTrials, 3),
+  expiredUnpaidTrials,
+  convertedTrials,
+  trialConversionRate: completedTrials ? Math.round((convertedTrials / completedTrials) * 100) : 0,
+  completedTrials,
+  upcomingRenewals30Days: countExpiringWithin(activeSubscriptions, 30),
+  upcomingRenewals15Days: countExpiringWithin(activeSubscriptions, 15),
+  upcomingRenewals7Days: countExpiringWithin(activeSubscriptions, 7),
+};
 
 // Identify trials expiring soon (within 7 days)
 const expiringTrialsList: Array<{

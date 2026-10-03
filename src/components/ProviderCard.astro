@@ -20,7 +20,7 @@ const shareText = isMr
   ? `${dict.actions.sharePrompt} ${provider.provider_name} (${categoryName}), ${talukaName} येथे.`
   : `${dict.actions.sharePrompt} ${provider.provider_name} (${categoryName}) in ${talukaName}.`;
 
-// Clean phone for tel: link
+// The telephone number stays in the tel: target but is not displayed in the UI.
 const telHref = `tel:${provider.mobile}`;
 
 // WhatsApp link with friendly prefilled localized greeting

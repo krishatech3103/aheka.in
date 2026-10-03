@@ -36,20 +36,6 @@ const popularCategories = [...categories].sort((a, b) => {
   return (a.sort_order ?? 0) - (b.sort_order ?? 0);
 });
 
-// Popular / Key Talukas (prefer featured talukas, fallback to sort order)
-const featuredTalukas = talukas.filter(t => t.is_featured);
-const popularTalukas = featuredTalukas.length > 0
-  ? featuredTalukas.slice(0, 6)
-  : talukas.slice(0, 6);
-
-// Default district and taluka context strictly derived from database records
-const defaultTaluka = popularTalukas[0] || talukas[0] || null;
-const defaultDistrict = defaultTaluka
-  ? (districts.find(d => d.id === defaultTaluka.district_id) || districts[0] || null)
-  : (districts[0] || null);
-const defaultDistrictSlug = defaultDistrict?.slug || '';
-const defaultTalukaSlug = defaultTaluka?.slug || '';
-
 // All searchable talukas with district metadata
 const searchTalukas = talukas.map(t => {
   const d = districts.find(dist => dist.id === t.district_id);
@@ -57,9 +43,12 @@ const searchTalukas = talukas.map(t => {
     slug: t.slug,
     name_en: t.name_en,
     name_mr: t.name_mr,
-    district_slug: d ? d.slug : defaultDistrictSlug,
-    district_name_en: d ? d.name_en : (defaultDistrict?.name_en || ''),
-    district_name_mr: d ? d.name_mr : (defaultDistrict?.name_mr || ''),
+    district_slug: d?.slug || '',
+    district_name_en: d?.name_en || '',
+    district_name_mr: d?.name_mr || '',
+    center_latitude: t.center_latitude,
+    center_longitude: t.center_longitude,
+    location_detection_radius_km: t.location_detection_radius_km,
   };
 });
 
@@ -80,7 +69,7 @@ const pageDesc = isMr
   canonicalPath={`/${safeLocale}`}
 >
   <!-- Hero Section -->
-  <section class="relative pt-8 pb-12 sm:pt-14 sm:pb-20 overflow-hidden bg-surface-canvas dark:bg-ink-canvas">
+  <section class="relative overflow-hidden bg-surface-canvas pt-12 pb-16 dark:bg-ink-canvas sm:pt-20 sm:pb-28">
     <!-- Subtle Background Radial Glow -->
     <div class="absolute inset-0 -z-10 flex items-center justify-center opacity-35 dark:opacity-20 pointer-events-none">
       <div class="w-[450px] h-[450px] bg-gradient-to-tr from-brand-300 via-amber-200 to-transparent dark:from-brand-900 dark:via-amber-950 rounded-full blur-3xl"></div>
@@ -104,47 +93,25 @@ const pageDesc = isMr
       </p>
 
       <!-- Search Island Interactive Component -->
-      <div class="mt-7 sm:mt-9">
+      <div class="mt-9 sm:mt-12">
         <SearchIsland
           client:load
           locale={safeLocale}
           categories={searchCategories}
           talukas={searchTalukas}
-          defaultDistrictSlug={defaultDistrictSlug}
-          defaultTalukaSlug={defaultTalukaSlug}
         />
       </div>
-
-      <!-- Popular Talukas (Database Driven) -->
-      {popularTalukas.length > 0 && (
-        <div class="mt-5 sm:mt-6 flex items-center justify-center flex-wrap gap-2 text-xs text-ink-secondary">
-          <span class="font-semibold text-ink-muted">{dict.home.popularTalukas}:</span>
-          {popularTalukas.map((t) => {
-            const dSlug = districts.find(d => d.id === t.district_id)?.slug || defaultDistrictSlug;
-            return (
-              <a
-                href={`/${safeLocale}/${dSlug}/${t.slug}`}
-                class="px-3 py-1.5 rounded-lg bg-white dark:bg-ink-surface border border-surface-border hover:border-brand-500 hover:text-brand-700 dark:hover:text-brand-400 transition-colors shadow-2xs font-medium notranslate"
-                translate="no"
-              >
-                {isMr ? t.name_mr : t.name_en}
-              </a>
-            );
-          })}
-          <button
-            type="button"
-            onclick="document.getElementById('location-dialog')?.showModal()"
-            class="px-2 py-1 text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium cursor-pointer"
-          >
-            {isMr ? 'सर्व तालुके पहा →' : 'View all talukas →'}
-          </button>
-        </div>
-      )}
     </div>
   </section>
 
   <!-- Popular Categories Grid (Above the fold / Just below hero) -->
-  <section class="py-10 sm:py-14 bg-white dark:bg-ink-surface border-y border-surface-border">
+  <section
+    id="popular-services-by-location"
+    data-talukas={JSON.stringify(searchTalukas)}
+    data-locale={safeLocale}
+    class="py-10 sm:py-14 bg-white dark:bg-ink-surface border-y border-surface-border"
+    hidden
+  >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between mb-6 sm:mb-8">
         <div>
@@ -155,17 +122,16 @@ const pageDesc = isMr
             {dict.home.popularServicesDesc}
           </p>
         </div>
-        {defaultDistrictSlug && defaultTalukaSlug && (
-          <a
-            href={`/${safeLocale}/${defaultDistrictSlug}/${defaultTalukaSlug}`}
-            class="text-xs sm:text-sm font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 hover:underline flex items-center gap-1"
-          >
-            <span>{dict.home.viewAllServices}</span>
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
-          </a>
-        )}
+        <a
+          data-view-all-services
+          href={`/${safeLocale}/services`}
+          class="text-xs sm:text-sm font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 hover:underline flex items-center gap-1"
+        >
+          <span>{dict.home.viewAllServices}</span>
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
       </div>
 
       <!-- Category Cards Grid or Empty State -->
@@ -177,13 +143,11 @@ const pageDesc = isMr
         </div>
       ) : (
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          {popularCategories.slice(0, 12).map((cat) => {
-            const catHref = defaultDistrictSlug && defaultTalukaSlug
-              ? `/${safeLocale}/${defaultDistrictSlug}/${defaultTalukaSlug}/${cat.slug}`
-              : `/${safeLocale}/services`;
-            return (
+          {popularCategories.slice(0, 12).map((cat) => (
               <a
-                href={catHref}
+                data-category-card
+                data-category-slug={cat.slug}
+                href={`/${safeLocale}/services`}
                 class="flex flex-col items-center text-center p-4 sm:p-5 rounded-2xl border border-surface-border bg-surface-canvas/60 dark:bg-ink-canvas/40 hover:bg-white dark:hover:bg-ink-surface hover:border-brand-500 hover:shadow-soft transition-all duration-200 group"
               >
                 <!-- Category Icon Container with semantic SVG -->
@@ -229,17 +193,57 @@ const pageDesc = isMr
                 <h3 class="font-bold text-xs sm:text-sm text-ink-primary group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                   {isMr ? cat.name_mr : cat.name_en}
                 </h3>
-                {defaultTaluka && (
-                  <span class="text-[11px] text-ink-muted mt-1 font-medium notranslate" translate="no">
-                    {isMr ? defaultTaluka.name_mr : defaultTaluka.name_en}
-                  </span>
-                )}
+                <span data-category-taluka class="text-[11px] text-ink-muted mt-1 font-medium notranslate" translate="no"></span>
               </a>
-            );
-          })}
+          ))}
         </div>
       )}
   </section>
+
+  <script>
+    import { LOCATION_PREFERENCE_EVENT, readLocationPreference, type LocationPreference } from '../../lib/location/preference';
+
+    type HomepageTaluka = {
+      slug: string;
+      name_en: string;
+      name_mr: string;
+      district_slug: string;
+    };
+
+    function updatePopularServices(preference: LocationPreference | null = readLocationPreference()) {
+      const section = document.getElementById('popular-services-by-location');
+      if (!section) return;
+
+      const talukas = JSON.parse(section.dataset.talukas || '[]') as HomepageTaluka[];
+      const selectedTaluka = preference && talukas.find((taluka) => (
+        taluka.district_slug === preference.districtSlug && taluka.slug === preference.talukaSlug
+      ));
+
+      section.hidden = !selectedTaluka;
+      if (!selectedTaluka || !preference) return;
+
+      const locale = section.dataset.locale || 'en';
+      const talukaName = locale === 'mr' ? selectedTaluka.name_mr : selectedTaluka.name_en;
+      const directoryPath = `/${locale}/${preference.districtSlug}/${preference.talukaSlug}`;
+
+      const viewAll = section.querySelector<HTMLAnchorElement>('[data-view-all-services]');
+      if (viewAll) viewAll.href = directoryPath;
+
+      section.querySelectorAll<HTMLAnchorElement>('[data-category-card]').forEach((card) => {
+        const categorySlug = card.dataset.categorySlug;
+        if (categorySlug) card.href = `${directoryPath}/${categorySlug}`;
+      });
+      section.querySelectorAll<HTMLElement>('[data-category-taluka]').forEach((label) => {
+        label.textContent = talukaName;
+      });
+    }
+
+    updatePopularServices();
+    document.addEventListener('astro:page-load', () => updatePopularServices());
+    window.addEventListener(LOCATION_PREFERENCE_EVENT, (event) => {
+      updatePopularServices((event as CustomEvent<LocationPreference>).detail || null);
+    });
+  </script>
 
   <!-- How It Works Section -->
   <section class="py-14 sm:py-20 bg-surface-canvas dark:bg-ink-canvas">
