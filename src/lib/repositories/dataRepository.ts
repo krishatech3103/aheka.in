@@ -80,6 +80,40 @@ export interface IndexableDirectoryRoute {
   category_slug: string;
 }
 
+export interface ManualVendorInput {
+  provider_name: string;
+  business_name?: string;
+  mobile: string;
+  whatsapp_number?: string;
+  district_id: string;
+  taluka_id: string;
+  category_ids: string[];
+  experience_years: number;
+  full_address: string;
+  google_maps_url?: string;
+  description_en?: string;
+  description_mr?: string;
+  is_verified?: boolean;
+  admin_notes?: string;
+}
+
+export interface ManualVendorCreationResult {
+  success: boolean;
+  error?: string;
+  vendor?: Vendor;
+  listings?: VendorListing[];
+}
+
+function createVendorSlug(value: string): string {
+  const readablePart = value
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || 'vendor';
+  return `${readablePart}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
 export function getLocalizedCategoryName(
   category: { name_en: string; name_mr: string },
   locale: string = 'en'
@@ -128,10 +162,10 @@ export interface DataRepository {
     full_address: string;
     service_areas_text: string;
     google_maps_url?: string;
-    image_path?: string;
     consent_agreed: boolean;
     turnstile_verified?: boolean;
   }): Promise<{ id: string; success: boolean }>;
+  createManualVendor(data: ManualVendorInput): Promise<ManualVendorCreationResult>;
   recordAnalyticsEvent(data: {
     vendor_id: string;
     vendor_listing_id?: string;
@@ -1028,7 +1062,6 @@ class MockDataRepository implements DataRepository {
     full_address: string;
     service_areas_text: string;
     google_maps_url?: string;
-    image_path?: string;
     consent_agreed: boolean;
     turnstile_verified?: boolean;
   }): Promise<{ id: string; success: boolean }> {
@@ -1046,7 +1079,7 @@ class MockDataRepository implements DataRepository {
       full_address: data.full_address.trim(),
       service_areas_text: data.service_areas_text.trim(),
       google_maps_url: data.google_maps_url || null,
-      image_path: data.image_path || null,
+      image_path: null,
       status: 'pending',
       rejection_reason: null,
       internal_notes: null,
@@ -1058,6 +1091,64 @@ class MockDataRepository implements DataRepository {
 
     this.applications.unshift(newApp);
     return { id: appId, success: true };
+  }
+
+  async createManualVendor(data: ManualVendorInput): Promise<ManualVendorCreationResult> {
+    const taluka = this.talukas.find(item => item.id === data.taluka_id && item.district_id === data.district_id);
+    if (!taluka) return { success: false, error: 'Choose a taluka that belongs to the selected district.' };
+
+    const categoryIds = [...new Set(data.category_ids)];
+    const selectedCategories = this.categories.filter(item => categoryIds.includes(item.id));
+    if (!categoryIds.length || selectedCategories.length !== categoryIds.length) {
+      return { success: false, error: 'Choose at least one valid category.' };
+    }
+
+    const mobile = normalizeIndianMobile(data.mobile);
+    if (this.vendors.some(item => item.mobile === mobile)) {
+      return { success: false, error: 'A vendor with this mobile number already exists.' };
+    }
+
+    const now = new Date().toISOString();
+    const vendor: Vendor = {
+      id: `vendor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      slug: createVendorSlug(data.business_name || data.provider_name),
+      provider_name: data.provider_name.trim(),
+      business_name: data.business_name?.trim() || null,
+      mobile,
+      whatsapp_number: data.whatsapp_number ? normalizeIndianMobile(data.whatsapp_number) : mobile,
+      experience_years: data.experience_years,
+      full_address: data.full_address.trim(),
+      google_maps_url: data.google_maps_url?.trim() || null,
+      latitude: null,
+      longitude: null,
+      profile_image_url: null,
+      description_en: data.description_en?.trim() || null,
+      description_mr: data.description_mr?.trim() || null,
+      approval_status: 'approved',
+      is_suspended: false,
+      is_verified: Boolean(data.is_verified),
+      is_publicly_visible: true,
+      portal_enabled: false,
+      admin_notes: data.admin_notes?.trim() || null,
+      created_at: now,
+      updated_at: now,
+    };
+    const listings = categoryIds.map((category_id, index): VendorListing => ({
+      id: `listing-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+      vendor_id: vendor.id,
+      category_id,
+      taluka_id: taluka.id,
+      approval_status: 'approved',
+      is_visible: true,
+      approved_at: now,
+      first_activated_at: null,
+      created_at: now,
+      updated_at: now,
+    }));
+
+    this.vendors.unshift(vendor);
+    this.vendorListings.push(...listings);
+    return { success: true, vendor, listings };
   }
 
   async recordAnalyticsEvent(data: {
@@ -1989,7 +2080,7 @@ export class SupabaseDataRepository implements DataRepository {
           full_address: data.full_address,
           service_areas_text: data.service_areas_text,
           google_maps_url: data.google_maps_url || null,
-          image_path: data.image_path || null,
+          image_path: null,
           consent_agreed: data.consent_agreed,
           turnstile_verified: data.turnstile_verified || false,
           status: 'pending',
@@ -2014,6 +2105,82 @@ export class SupabaseDataRepository implements DataRepository {
     }
   }
 
+  async createManualVendor(data: ManualVendorInput): Promise<ManualVendorCreationResult> {
+    try {
+      const client = this.getPrivilegedClient();
+      const categoryIds = [...new Set(data.category_ids)];
+      if (!categoryIds.length) return { success: false, error: 'Choose at least one category.' };
+
+      const [talukaResult, categoriesResult] = await Promise.all([
+        client.from('talukas').select('id, district_id').eq('id', data.taluka_id).maybeSingle(),
+        client.from('categories').select('id').in('id', categoryIds),
+      ]);
+      if (talukaResult.error || !talukaResult.data || talukaResult.data.district_id !== data.district_id) {
+        return { success: false, error: 'Choose a taluka that belongs to the selected district.' };
+      }
+      if (categoriesResult.error || (categoriesResult.data || []).length !== categoryIds.length) {
+        return { success: false, error: 'Choose at least one valid category.' };
+      }
+
+      const mobile = normalizeIndianMobile(data.mobile);
+      const { data: existingVendor, error: existingVendorError } = await client
+        .from('vendors')
+        .select('id')
+        .eq('mobile', mobile)
+        .maybeSingle();
+      if (existingVendorError) throw existingVendorError;
+      if (existingVendor) return { success: false, error: 'A vendor with this mobile number already exists.' };
+
+      const now = new Date().toISOString();
+      const { data: vendor, error: vendorError } = await client
+        .from('vendors')
+        .insert({
+          slug: createVendorSlug(data.business_name || data.provider_name),
+          provider_name: data.provider_name.trim(),
+          business_name: data.business_name?.trim() || null,
+          mobile,
+          whatsapp_number: data.whatsapp_number ? normalizeIndianMobile(data.whatsapp_number) : mobile,
+          experience_years: data.experience_years,
+          full_address: data.full_address.trim(),
+          google_maps_url: data.google_maps_url?.trim() || null,
+          description_en: data.description_en?.trim() || null,
+          description_mr: data.description_mr?.trim() || null,
+          approval_status: 'approved',
+          is_suspended: false,
+          is_verified: Boolean(data.is_verified),
+          is_publicly_visible: true,
+          portal_enabled: false,
+          admin_notes: data.admin_notes?.trim() || null,
+        })
+        .select('*')
+        .single();
+      if (vendorError || !vendor) throw vendorError || new Error('Could not create the vendor.');
+
+      const { data: listings, error: listingsError } = await client
+        .from('vendor_listings')
+        .insert(categoryIds.map(category_id => ({
+          vendor_id: vendor.id,
+          category_id,
+          taluka_id: data.taluka_id,
+          approval_status: 'approved',
+          is_visible: true,
+          approved_at: now,
+        })))
+        .select('*');
+      if (listingsError || !listings) {
+        await client.from('vendors').delete().eq('id', vendor.id);
+        throw listingsError || new Error('Could not create vendor listings.');
+      }
+
+      return { success: true, vendor: vendor as Vendor, listings: listings as VendorListing[] };
+    } catch (error) {
+      if (this.production) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not create the vendor.' };
+      }
+      return this.fallback.createManualVendor(data);
+    }
+  }
+
   async recordAnalyticsEvent(data: any): Promise<void> {
     try {
       const client = this.getPrivilegedClient();
@@ -2028,9 +2195,9 @@ export class SupabaseDataRepository implements DataRepository {
     try {
       const client = this.getPrivilegedClient();
       const [vendors, listings, applications, payments, trials, subscriptions] = await Promise.all([
-        client.from('vendors').select('id'),
-        client.from('vendor_listings').select('id, approval_status'),
-        client.from('vendor_applications').select('id, status'),
+        client.from('vendors').select('*', { count: 'exact', head: true }),
+        client.from('vendor_listings').select('*', { count: 'exact', head: true }).eq('approval_status', 'waitlisted'),
+        client.from('vendor_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         client.from('payments').select('amount'),
         client.from('listing_trials').select('vendor_listing_id, starts_at, ends_at, status'),
         client.from('subscriptions').select('vendor_listing_id, starts_at, ends_at, status'),
@@ -2047,11 +2214,11 @@ export class SupabaseDataRepository implements DataRepository {
         ...(subscriptions.data || []).filter(isCurrent).map((item: any) => item.vendor_listing_id),
       ]);
       return {
-        totalVendors: (vendors.data || []).length,
+        totalVendors: vendors.count || 0,
         activeListings: activeListingIds.size,
         activeTrials: (trials.data || []).filter(isCurrent).length,
-        waitlistedListings: (listings.data || []).filter((item: any) => item.approval_status === 'waitlisted').length,
-        pendingApplications: (applications.data || []).filter((item: any) => item.status === 'pending').length,
+        waitlistedListings: listings.count || 0,
+        pendingApplications: applications.count || 0,
         totalRevenue: (payments.data || []).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0),
       };
     } catch {
@@ -2063,8 +2230,8 @@ export class SupabaseDataRepository implements DataRepository {
     try {
       const client = this.getPrivilegedClient();
       const [trials, subscriptions] = await Promise.all([
-        client.from('listing_trials').select('*'),
-        client.from('subscriptions').select('*').eq('status', 'active'),
+        client.from('listing_trials').select('starts_at, ends_at, status'),
+        client.from('subscriptions').select('starts_at, ends_at, status').eq('status', 'active'),
       ]);
       if (trials.error || subscriptions.error) {
         return this.fallbackOrThrow(() => this.fallback.getAdminTrialMetrics(), 'trial metrics lookup');
@@ -2108,16 +2275,32 @@ export class SupabaseDataRepository implements DataRepository {
       if ([vendors, listings, subscriptions, trials].some(result => result.error)) {
         return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');
       }
+      const listingsByVendor = new Map<string, any[]>();
+      for (const listing of listings.data || []) {
+        const vendorListings = listingsByVendor.get(listing.vendor_id) || [];
+        vendorListings.push(listing);
+        listingsByVendor.set(listing.vendor_id, vendorListings);
+      }
+
+      const subscriptionsByListing = new Map((subscriptions.data || []).map((subscription: any) => [subscription.vendor_listing_id, subscription]));
+      const trialsByListing = new Map<string, any[]>();
+      for (const trial of trials.data || []) {
+        const listingTrials = trialsByListing.get(trial.vendor_listing_id) || [];
+        listingTrials.push(trial);
+        trialsByListing.set(trial.vendor_listing_id, listingTrials);
+      }
+
       return (vendors.data || []).map((vendor: any) => ({
         ...vendor,
-        listings: (listings.data || [])
-          .filter((listing: any) => listing.vendor_id === vendor.id)
-          .map((listing: any) => ({
+        listings: (listingsByVendor.get(vendor.id) || []).map((listing: any) => {
+          const listingTrials = trialsByListing.get(listing.id) || [];
+          return {
             ...listing,
-            subscription: (subscriptions.data || []).find((subscription: any) => subscription.vendor_listing_id === listing.id),
-            current_trial: (trials.data || []).find((trial: any) => trial.vendor_listing_id === listing.id),
-            trials: (trials.data || []).filter((trial: any) => trial.vendor_listing_id === listing.id),
-          })),
+            subscription: subscriptionsByListing.get(listing.id),
+            current_trial: listingTrials[0],
+            trials: listingTrials,
+          };
+        }),
       }));
     } catch {
       return this.fallbackOrThrow(() => this.fallback.getAdminVendors(), 'admin vendor lookup');

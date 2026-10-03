@@ -13,9 +13,11 @@ const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
 
 const repo = getDataRepository();
-const categories = await repo.getCategories();
-const districts = await repo.getDistricts();
-const talukas = await repo.getTalukas();
+const [categories, districts, talukas] = await Promise.all([
+  repo.getCategories(),
+  repo.getDistricts(),
+  repo.getTalukas(),
+]);
 
 const pageTitle = isMr
   ? 'आहे का? — महाराष्ट्रातील सर्व सेवा प्रकार | स्थानिक सेवा शोध'
@@ -32,6 +34,7 @@ const pageDesc = isMr
   title={pageTitle}
   description={pageDesc}
   locale={safeLocale}
+  navigationData={{ districts, talukas, categories }}
   canonicalPath={`/${safeLocale}/services`}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">

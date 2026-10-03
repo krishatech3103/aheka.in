@@ -3,6 +3,11 @@ export type Locale = 'mr' | 'en';
 // English is the public default. Marathi remains a complete, opt-in locale.
 export const DEFAULT_LOCALE: Locale = 'en';
 export const SUPPORTED_LOCALES: Locale[] = ['en', 'mr'];
+export const LOCALE_PREFERENCE_COOKIE = 'aheka_locale';
+
+export function getPreferredLocale(value: string | undefined): Locale {
+  return value === 'mr' || value === 'en' ? value : DEFAULT_LOCALE;
+}
 export const LOCALES = SUPPORTED_LOCALES;
 
 /**

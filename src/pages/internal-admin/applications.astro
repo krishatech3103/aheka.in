@@ -13,9 +13,11 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const applications = await repo.getAdminApplications();
-const districts = await repo.getDistricts();
-const talukas = await repo.getTalukas();
+const [applications, districts, talukas] = await Promise.all([
+  repo.getAdminApplications(),
+  repo.getDistricts(),
+  repo.getTalukas(),
+]);
 ---
 
 <!DOCTYPE html>

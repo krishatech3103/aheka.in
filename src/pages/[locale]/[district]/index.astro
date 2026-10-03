@@ -21,8 +21,10 @@ if (!district) {
   return new Response('District not found', { status: 404 });
 }
 
-const talukas = await repo.getTalukas(district.id);
-const categories = await repo.getCategories();
+const [talukas, categories] = await Promise.all([
+  repo.getTalukas(district.id),
+  repo.getCategories(),
+]);
 
 const districtName = isMr ? district.name_mr : district.name_en;
 const pageTitle = isMr

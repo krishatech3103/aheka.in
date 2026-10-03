@@ -2,6 +2,19 @@ import type { MiddlewareHandler } from 'astro';
 import { ADMIN_SESSION_COOKIE, getAdminConfigurationError, isValidAdminSession } from './lib/security/adminSession';
 import { getRuntimeConfig, isProductionRuntime } from './lib/runtime/config';
 
+function hydrateWorkerRuntimeEnvironment(locals: {
+  runtime?: { env?: Record<string, unknown> };
+}): void {
+  const bindings = locals.runtime?.env;
+  if (!bindings) return;
+
+  for (const [name, value] of Object.entries(bindings)) {
+    if (typeof value === 'string') {
+      process.env[name] ??= value;
+    }
+  }
+}
+
 function notFound(): Response {
   return new Response('Not Found', {
     status: 404,
@@ -36,6 +49,11 @@ function unauthorizedAdminRequest(isApiRequest: boolean, adminEntryPath: string)
 }
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
+  // Astro exposes Cloudflare bindings through locals.runtime.env. Its generated
+  // Worker bundle initializes process.env as empty, so copy string bindings once
+  // per request for the existing server-only runtime configuration helpers.
+  hydrateWorkerRuntimeEnvironment(context.locals as unknown as { runtime?: { env?: Record<string, unknown> } });
+
   const url = new URL(context.request.url);
   const pathname = url.pathname;
 

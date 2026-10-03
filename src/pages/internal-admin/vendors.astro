@@ -14,7 +14,12 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const vendors = await repo.getAdminVendors();
+const [vendors, districts, talukas, categories] = await Promise.all([
+  repo.getAdminVendors(),
+  repo.getAllDistrictsAdmin(),
+  repo.getAllTalukasAdmin(),
+  repo.getAllCategoriesAdmin(),
+]);
 const now = new Date();
 
 // Helper to determine accurate listing status and badge styling
@@ -172,8 +177,15 @@ function getListingLifecycleInfo(l: typeof vendors[0]['listings'][0]) {
           </p>
         </div>
 
-        <!-- Filter & Search Controls -->
+        <!-- Filter, Search & Manual Vendor Controls -->
         <div class="flex items-center gap-2 flex-wrap">
+          <button
+            id="add-vendor-btn"
+            type="button"
+            class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors"
+          >
+            + Add Vendor
+          </button>
           <select id="filter-status" class="px-3 py-2 rounded-xl border border-surface-border text-xs bg-surface-canvas font-semibold">
             <option value="all">All Statuses</option>
             <option value="trial-active">Trial Active</option>
@@ -373,6 +385,109 @@ function getListingLifecycleInfo(l: typeof vendors[0]['listings'][0]) {
       </div>
 
     </main>
+
+    <!-- Manual Vendor Creation Modal -->
+    <dialog
+      id="manual-vendor-dialog"
+      class="m-auto rounded-3xl p-0 shadow-2xl border border-surface-border bg-white max-w-3xl w-[94vw] backdrop:bg-ink-primary/50"
+    >
+      <div class="p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h3 class="text-xl font-black text-ink-primary">Add Vendor Manually</h3>
+            <p class="text-xs text-ink-muted mt-1">Create the vendor and selected listings directly. The listing stays off the public directory until you start its trial or record annual payment.</p>
+          </div>
+          <button type="button" id="close-manual-vendor-dialog" class="text-ink-muted hover:text-ink-primary text-xl font-bold p-1" aria-label="Close">✕</button>
+        </div>
+
+        <form id="manual-vendor-form" class="space-y-5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="manual-provider-name" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Provider name *</label>
+              <input id="manual-provider-name" name="provider_name" required maxlength="150" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="e.g. Rahul Patil" />
+            </div>
+            <div>
+              <label for="manual-business-name" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Business name</label>
+              <input id="manual-business-name" name="business_name" maxlength="200" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="e.g. Rahul Electricals" />
+            </div>
+            <div>
+              <label for="manual-mobile" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Mobile number *</label>
+              <input id="manual-mobile" name="mobile" required inputmode="numeric" maxlength="13" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono" placeholder="9876543210" />
+            </div>
+            <div>
+              <label for="manual-whatsapp" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">WhatsApp number</label>
+              <input id="manual-whatsapp" name="whatsapp_number" inputmode="numeric" maxlength="13" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono" placeholder="Same as mobile if blank" />
+            </div>
+            <div>
+              <label for="manual-district" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">District *</label>
+              <select id="manual-district" name="district_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm">
+                <option value="">Select district</option>
+                {districts.filter((district) => district.is_active).map((district) => <option value={district.id}>{district.name_en} — {district.name_mr}</option>)}
+              </select>
+            </div>
+            <div>
+              <label for="manual-taluka" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Taluka *</label>
+              <select id="manual-taluka" name="taluka_id" required disabled class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm disabled:cursor-not-allowed disabled:opacity-60">
+                <option value="">Select district first</option>
+                {talukas.filter((taluka) => taluka.is_active).map((taluka) => <option value={taluka.id} data-district-id={taluka.district_id} hidden>{taluka.name_en} — {taluka.name_mr}</option>)}
+              </select>
+            </div>
+            <div>
+              <label for="manual-experience" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Experience (years) *</label>
+              <input id="manual-experience" name="experience_years" type="number" required min="0" max="60" value="0" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm font-mono" />
+            </div>
+            <div>
+              <label for="manual-maps" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Google Maps link</label>
+              <input id="manual-maps" name="google_maps_url" type="url" maxlength="500" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="https://maps.app.goo.gl/..." />
+            </div>
+          </div>
+
+          <div>
+            <label for="manual-address" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Full address *</label>
+            <textarea id="manual-address" name="full_address" required rows="2" maxlength="500" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="Shop / house number, locality, taluka"></textarea>
+          </div>
+
+          <fieldset>
+            <legend class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-2">Service categories *</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-2xl border border-surface-border bg-surface-canvas p-3">
+              {categories.filter((category) => category.is_visible).map((category) => (
+                <label class="flex items-center gap-2 text-xs text-ink-primary cursor-pointer">
+                  <input type="checkbox" name="category_ids" value={category.id} class="rounded text-brand-600 focus:ring-brand-500" />
+                  <span>{category.name_en}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="manual-description-en" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Description (English)</label>
+              <textarea id="manual-description-en" name="description_en" rows="3" maxlength="2000" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="Services offered and useful details"></textarea>
+            </div>
+            <div>
+              <label for="manual-description-mr" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Description (Marathi)</label>
+              <textarea id="manual-description-mr" name="description_mr" rows="3" maxlength="2000" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="सेवांची माहिती"></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label for="manual-admin-notes" class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">Admin notes</label>
+            <textarea id="manual-admin-notes" name="admin_notes" rows="2" maxlength="2000" class="w-full px-3.5 py-2.5 rounded-xl border border-surface-border bg-surface-canvas text-sm" placeholder="Internal only; never shown publicly"></textarea>
+          </div>
+
+          <label class="flex items-center gap-2 text-xs font-semibold text-ink-primary cursor-pointer">
+            <input id="manual-verified" name="is_verified" type="checkbox" class="rounded text-brand-600 focus:ring-brand-500" />
+            Mark this vendor as verified
+          </label>
+
+          <div id="manual-vendor-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium"></div>
+          <div class="flex items-center justify-end gap-2 pt-1">
+            <button type="button" id="cancel-manual-vendor" class="px-4 py-2 text-xs font-semibold text-ink-secondary hover:text-ink-primary">Cancel</button>
+            <button type="submit" id="manual-vendor-submit" class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs transition-colors">Create Vendor</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <!-- 1. Start 30-Day Free Trial Modal -->
     <dialog
@@ -662,6 +777,109 @@ function getListingLifecycleInfo(l: typeof vendors[0]['listings'][0]) {
       const trialDialog = document.getElementById('start-trial-dialog') as HTMLDialogElement | null;
       const convertDialog = document.getElementById('convert-dialog') as HTMLDialogElement | null;
       const reportDialog = document.getElementById('report-dialog') as HTMLDialogElement | null;
+      const manualVendorDialog = document.getElementById('manual-vendor-dialog') as HTMLDialogElement | null;
+      const manualVendorForm = document.getElementById('manual-vendor-form') as HTMLFormElement | null;
+      const manualDistrict = document.getElementById('manual-district') as HTMLSelectElement | null;
+      const manualTaluka = document.getElementById('manual-taluka') as HTMLSelectElement | null;
+
+      function closeManualVendorDialog() {
+        manualVendorDialog?.close();
+      }
+
+      function filterManualTalukas() {
+        if (!manualTaluka) return;
+        const districtId = manualDistrict?.value || '';
+        manualTaluka.value = '';
+        manualTaluka.disabled = !districtId;
+        Array.from(manualTaluka.options).forEach(option => {
+          if (!option.value) {
+            option.textContent = districtId ? 'Select taluka' : 'Select district first';
+            option.hidden = false;
+            option.disabled = false;
+            return;
+          }
+          const belongsToDistrict = option.dataset.districtId === districtId;
+          option.hidden = !belongsToDistrict;
+          option.disabled = !belongsToDistrict;
+        });
+      }
+
+      document.getElementById('add-vendor-btn')?.addEventListener('click', () => {
+        const errorBox = document.getElementById('manual-vendor-error');
+        errorBox?.classList.add('hidden');
+        filterManualTalukas();
+        manualVendorDialog?.showModal();
+      });
+      document.getElementById('close-manual-vendor-dialog')?.addEventListener('click', closeManualVendorDialog);
+      document.getElementById('cancel-manual-vendor')?.addEventListener('click', closeManualVendorDialog);
+      manualDistrict?.addEventListener('change', filterManualTalukas);
+
+      manualVendorForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const errorBox = document.getElementById('manual-vendor-error');
+        const submitButton = document.getElementById('manual-vendor-submit') as HTMLButtonElement | null;
+        const formData = new FormData(manualVendorForm);
+        const categoryIds = formData.getAll('category_ids').filter((value): value is string => typeof value === 'string' && Boolean(value));
+
+        if (!categoryIds.length) {
+          if (errorBox) {
+            errorBox.textContent = 'Select at least one service category.';
+            errorBox.classList.remove('hidden');
+          }
+          return;
+        }
+
+        const payload = {
+          provider_name: String(formData.get('provider_name') || ''),
+          business_name: String(formData.get('business_name') || '') || null,
+          mobile: String(formData.get('mobile') || ''),
+          whatsapp_number: String(formData.get('whatsapp_number') || '') || null,
+          district_id: String(formData.get('district_id') || ''),
+          taluka_id: String(formData.get('taluka_id') || ''),
+          category_ids: categoryIds,
+          experience_years: Number(formData.get('experience_years') || 0),
+          full_address: String(formData.get('full_address') || ''),
+          google_maps_url: String(formData.get('google_maps_url') || '') || null,
+          description_en: String(formData.get('description_en') || '') || null,
+          description_mr: String(formData.get('description_mr') || '') || null,
+          admin_notes: String(formData.get('admin_notes') || '') || null,
+          is_verified: formData.get('is_verified') === 'on',
+        };
+
+        errorBox?.classList.add('hidden');
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Creating vendor...';
+        }
+
+        try {
+          const response = await fetch(`/${adminEntryPath}/api/create-vendor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const responseText = await response.text();
+          let result: { success?: boolean; error?: string };
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            throw new Error('The server returned an invalid response. Please refresh and try again.');
+          }
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Could not create the vendor.');
+          }
+          window.location.reload();
+        } catch (error) {
+          if (errorBox) {
+            errorBox.textContent = error instanceof Error ? error.message : 'Network error. Please try again.';
+            errorBox.classList.remove('hidden');
+          }
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Create Vendor';
+          }
+        }
+      });
 
       // Filter & Search Logic
       const filterSelect = document.getElementById('filter-status') as HTMLSelectElement | null;

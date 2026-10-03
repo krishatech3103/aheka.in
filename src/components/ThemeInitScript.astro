@@ -11,7 +11,7 @@ const { storageKey = 'aheka_theme' } = Astro.props;
     try {
       var key = storageKey || 'aheka_theme';
       var stored = localStorage.getItem(key);
-      var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+      var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'light';
       var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       var docEl = document.documentElement;
 

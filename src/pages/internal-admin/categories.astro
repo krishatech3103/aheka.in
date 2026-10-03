@@ -26,7 +26,7 @@ const categories = await repo.getAllCategoriesAdmin();
     <title>Aheka Admin — Category Management</title>
     <meta name="robots" content="noindex, nofollow" />
   </head>
-  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas">
+  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas" data-admin-entry-path={adminEntryPath}>
     
     <!-- Top Nav -->
     <header class="bg-surface-elevated border-b border-surface-border sticky top-0 z-30">
@@ -196,6 +196,8 @@ const categories = await repo.getAllCategoriesAdmin();
     </div>
 
     <script>
+      const adminEntryPath = document.body.dataset.adminEntryPath || 'local-admin';
+
       const modal = document.getElementById('cat-modal');
       const form = document.getElementById('cat-form') as HTMLFormElement;
       const modalTitle = document.getElementById('modal-title');
@@ -267,7 +269,7 @@ const categories = await repo.getAllCategoriesAdmin();
         };
 
         try {
-          const res = await fetch('/api/internal-admin/manage-category', {
+          const res = await fetch('/' + adminEntryPath + '/api/manage-category', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),

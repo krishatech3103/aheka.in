@@ -4,9 +4,11 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import LocationModal from '../components/LocationModal.astro';
 import ThemeInitScript from '../components/ThemeInitScript.astro';
+import { ViewTransitions } from 'astro:transitions';
 import { getDictionary, type Locale, DEFAULT_LOCALE } from '../lib/i18n';
 import { getDataRepository } from '../lib/repositories/dataRepository';
 import { getSiteUrl } from '../lib/runtime/config';
+import type { Category, District, Taluka } from '../lib/types/database';
 
 interface Props {
   title: string;
@@ -18,6 +20,11 @@ interface Props {
   currentDistrictSlug?: string;
   currentTalukaSlug?: string;
   schemaJsonLd?: Record<string, any> | Record<string, any>[];
+  navigationData?: {
+    districts: District[];
+    talukas: Taluka[];
+    categories: Category[];
+  };
 }
 
 const {
@@ -30,6 +37,7 @@ const {
   currentDistrictSlug,
   currentTalukaSlug,
   schemaJsonLd,
+  navigationData,
 } = Astro.props;
 
 const dict = getDictionary(locale);
@@ -37,9 +45,13 @@ const isMr = locale === 'mr';
 
 // Repo for header/footer location & category lists
 const repo = getDataRepository();
-const districts = await repo.getDistricts();
-const talukas = await repo.getTalukas();
-const categories = await repo.getCategories();
+const [districts, talukas, categories] = navigationData
+  ? [navigationData.districts, navigationData.talukas, navigationData.categories]
+  : await Promise.all([
+      repo.getDistricts(),
+      repo.getTalukas(),
+      repo.getCategories(),
+    ]);
 
 // Canonical and Hreflang URLs
 const siteUrl = getSiteUrl(Astro.url.origin);
@@ -87,6 +99,7 @@ const organizationSchema = {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#e65100" />
     <ThemeInitScript storageKey="aheka_theme" />
+    <ViewTransitions />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />

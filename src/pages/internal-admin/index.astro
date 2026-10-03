@@ -14,10 +14,12 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const metrics = await repo.getAdminMetrics();
-const trialMetrics = await repo.getAdminTrialMetrics();
-const applications = await repo.getAdminApplications();
-const vendors = await repo.getAdminVendors();
+const [metrics, trialMetrics, applications, vendors] = await Promise.all([
+  repo.getAdminMetrics(),
+  repo.getAdminTrialMetrics(),
+  repo.getAdminApplications(),
+  repo.getAdminVendors(),
+]);
 
 const now = new Date();
 

@@ -1,5 +1,5 @@
 ---
-import { getDictionary, type Locale } from '../lib/i18n';
+import { getDictionary, LOCALE_PREFERENCE_COOKIE, type Locale } from '../lib/i18n';
 import ThemeToggle from './ThemeToggle.astro';
 import LogoIcon from './LogoIcon.astro';
 
@@ -29,6 +29,8 @@ if (currentPath.startsWith(`/${locale}`)) {
 } else {
   alternatePath = `/${alternateLocale}${currentPath}`;
 }
+
+const localePreferenceCookie = LOCALE_PREFERENCE_COOKIE + '=' + alternateLocale + '; Path=/; Max-Age=31536000; SameSite=Lax';
 ---
 
 <header class="sticky top-0 z-40 bg-white/95 dark:bg-ink-surface/95 backdrop-blur-md border-b border-surface-border">
@@ -104,6 +106,7 @@ if (currentPath.startsWith(`/${locale}`)) {
         <!-- Language Switcher -->
         <a
           href={alternatePath}
+          onclick={"document.cookie = " + JSON.stringify(localePreferenceCookie)}
           class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border border-surface-border bg-surface-muted hover:bg-white dark:hover:bg-ink-border text-ink-primary transition-all shadow-2xs"
           title={isMr ? 'इंग्रजीमध्ये बदला' : 'Switch to Marathi'}
         >
@@ -194,6 +197,7 @@ if (currentPath.startsWith(`/${locale}`)) {
       <!-- Language Switch -->
       <a
         href={alternatePath}
+        onclick={"document.cookie = " + JSON.stringify(localePreferenceCookie)}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-surface-border bg-surface-muted hover:bg-white dark:hover:bg-ink-border text-ink-primary transition-all shadow-2xs"
       >
         <span class="text-ink-muted text-[10px]">{isMr ? 'भाषा:' : 'Language:'}</span>

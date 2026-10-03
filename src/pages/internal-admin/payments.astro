@@ -13,8 +13,10 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const payments = await repo.getPayments();
-const metrics = await repo.getAdminMetrics();
+const [payments, metrics] = await Promise.all([
+  repo.getPayments(),
+  repo.getAdminMetrics(),
+]);
 ---
 
 <!DOCTYPE html>

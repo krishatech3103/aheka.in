@@ -14,9 +14,11 @@ const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
 
 const repo = getDataRepository();
-const districts = await repo.getDistricts();
-const talukas = await repo.getTalukas();
-const categories = await repo.getCategories();
+const [districts, talukas, categories] = await Promise.all([
+  repo.getDistricts(),
+  repo.getTalukas(),
+  repo.getCategories(),
+]);
 const turnstileSiteKey = getRuntimeConfig('PUBLIC_TURNSTILE_SITE_KEY');
 
 const pageTitle = isMr
@@ -32,6 +34,7 @@ const pageDesc = isMr
   title={pageTitle}
   description={pageDesc}
   locale={safeLocale}
+  navigationData={{ districts, talukas, categories }}
   canonicalPath={`/${safeLocale}/join`}
 >
   <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14">
@@ -266,35 +269,7 @@ const pageDesc = isMr
           />
         </div>
 
-        <!-- 10. Single Profile Photo Upload (Policy: Exactly one optional photo) -->
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-ink-primary mb-1.5">
-            {dict.join.profileImage} <span class="text-ink-muted text-xs normal-case">({isMr ? 'पर्यायी' : 'optional'})</span>
-          </label>
-          <div class="border-2 border-dashed border-surface-border hover:border-brand-500 rounded-2xl p-4 text-center bg-surface-canvas transition-colors">
-            <input
-              type="file"
-              id="photo_upload"
-              accept="image/jpeg,image/png,image/webp"
-              class="hidden"
-            />
-            <button
-              type="button"
-              onclick="document.getElementById('photo_upload')?.click()"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-surface-border text-xs font-semibold text-ink-primary hover:bg-surface-muted transition-colors shadow-2xs"
-            >
-              <svg class="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>{isMr ? 'फोटो निवडा (कमाल १ फोटो)' : 'Choose Photo (Single image max)'}</span>
-            </button>
-            <p id="upload-status" class="text-xs text-ink-muted mt-2">
-              {isMr ? 'जेपीजी, पीएनजी किंवा वेबपी (कमाल ५ एमबी). आपोआप कॉम्प्रेस केला जाईल.' : 'JPG, PNG or WebP. Automatically optimized.'}
-            </p>
-          </div>
-        </div>
-
-        <!-- 11. Consent & Terms Declaration -->
+        <!-- 10. Consent & Terms Declaration -->
         <div class="pt-2">
           <label class="flex items-start gap-3 cursor-pointer">
             <input
@@ -396,58 +371,6 @@ const pageDesc = isMr
     talukaSelect.disabled = false;
   });
 
-  // Client-side image handling (Single image policy)
-  let uploadedImageBase64 = null;
-  const photoInput = document.getElementById('photo_upload');
-  const uploadStatus = document.getElementById('upload-status');
-
-  photoInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert(isMr ? 'फोटो ५ एमबी पेक्षा लहान असावा.' : 'Image must be less than 5MB.');
-      return;
-    }
-
-    uploadStatus.textContent = isMr ? 'फोटो तयार करत आहे...' : 'Processing image...';
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        uploadedImageBase64 = canvas.toDataURL('image/webp', 0.85);
-        uploadStatus.textContent = isMr ? '✓ फोटो निवडला गेला.' : '✓ Photo selected and compressed.';
-        uploadStatus.classList.add('text-green-600', 'font-semibold');
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-
   // Form submission handling
   const form = document.getElementById('join-form');
   const submitBtn = document.getElementById('submit-btn');
@@ -481,7 +404,6 @@ const pageDesc = isMr
       full_address: formData.get('full_address'),
       service_areas_text: formData.get('service_areas_text'),
       google_maps_url: formData.get('google_maps_url') || null,
-      image_path: uploadedImageBase64 || null,
       turnstile_token: document.querySelector('[name="cf-turnstile-response"]')?.value || null,
       consent_agreed: formData.get('consent_agreed') === 'on',
       website_honeypot: formData.get('website_honeypot') || null,

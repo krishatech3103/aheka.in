@@ -13,8 +13,10 @@ if (!adminToken) {
 }
 
 const repo = getDataRepository();
-const districts = await repo.getAllDistrictsAdmin();
-const talukas = await repo.getAllTalukasAdmin();
+const [districts, talukas] = await Promise.all([
+  repo.getAllDistrictsAdmin(),
+  repo.getAllTalukasAdmin(),
+]);
 ---
 
 <!DOCTYPE html>
@@ -27,7 +29,7 @@ const talukas = await repo.getAllTalukasAdmin();
     <title>Aheka Admin — Location Management (Districts & Talukas)</title>
     <meta name="robots" content="noindex, nofollow" />
   </head>
-  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas">
+  <body class="min-h-full flex flex-col text-ink-primary bg-surface-canvas" data-admin-entry-path={adminEntryPath}>
     
     <!-- Top Nav -->
     <header class="bg-surface-elevated border-b border-surface-border sticky top-0 z-30">
@@ -334,6 +336,8 @@ const talukas = await repo.getAllTalukasAdmin();
     </div>
 
     <script>
+      const adminEntryPath = document.body.dataset.adminEntryPath || 'local-admin';
+
       // District Modal Logic
       const distModal = document.getElementById('dist-modal');
       const distForm = document.getElementById('dist-form') as HTMLFormElement;
@@ -400,7 +404,7 @@ const talukas = await repo.getAllTalukasAdmin();
         };
 
         try {
-          const res = await fetch('/api/internal-admin/manage-location', {
+          const res = await fetch('/' + adminEntryPath + '/api/manage-location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -495,7 +499,7 @@ const talukas = await repo.getAllTalukasAdmin();
         };
 
         try {
-          const res = await fetch('/api/internal-admin/manage-location', {
+          const res = await fetch('/' + adminEntryPath + '/api/manage-location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),

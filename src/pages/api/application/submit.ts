@@ -20,7 +20,6 @@ const applicationSchema = z.object({
   full_address: z.string().min(5, 'Full address is required').max(300),
   service_areas_text: z.string().min(2, 'Service areas are required').max(500),
   google_maps_url: z.string().url().optional().nullable().or(z.literal('')),
-  image_path: z.string().optional().nullable(),
   consent_agreed: z.literal(true, {
     errorMap: () => ({ message: 'You must agree to the terms and accuracy declaration' }),
   }),
@@ -85,7 +84,6 @@ export const POST: APIRoute = async ({ request }) => {
       full_address: data.full_address,
       service_areas_text: data.service_areas_text,
       google_maps_url: data.google_maps_url || undefined,
-      image_path: data.image_path || undefined,
       consent_agreed: data.consent_agreed,
       turnstile_verified: true,
     });

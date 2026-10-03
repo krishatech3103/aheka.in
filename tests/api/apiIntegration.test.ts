@@ -88,12 +88,6 @@ describe('API & End-to-End Workflow Tests', () => {
   });
 
   it('authenticates admin with valid credentials', async () => {
-    const cookiesSet: Record<string, string> = {};
-    const mockCookies = {
-      set: (key: string, val: string) => { cookiesSet[key] = val; },
-      get: (key: string) => ({ value: cookiesSet[key] }),
-      delete: (key: string) => { delete cookiesSet[key]; },
-    };
 
     const req = new Request('http://localhost/api/admin/login', {
       method: 'POST',
@@ -101,11 +95,13 @@ describe('API & End-to-End Workflow Tests', () => {
       body: JSON.stringify({ password: 'test-admin-password' }),
     });
 
-    const res = await adminLogin({ request: req, cookies: mockCookies } as any);
+    const res = await adminLogin({ request: req } as any);
+    expect(res.headers.get('set-cookie')).toContain('HttpOnly');
+    expect(res.headers.get('set-cookie')).toContain('SameSite=Strict');
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
-    expect(cookiesSet[ADMIN_SESSION_COOKIE]).toBeDefined();
+    expect(res.headers.get('set-cookie')).toContain('aheka_admin_session=');
   });
 
   it('enforces 10-slot limit during listing activation', async () => {

@@ -17,19 +17,21 @@ const isMr = safeLocale === 'mr';
 const siteUrl = getSiteUrl(Astro.url.origin);
 
 const repo = getDataRepository();
-const taluka = await repo.getTalukaBySlugs(districtSlug || '', talukaSlug || '');
-const category = await repo.getCategoryBySlug(categorySlug || '');
+const [taluka, category] = await Promise.all([
+  repo.getTalukaBySlugs(districtSlug || '', talukaSlug || ''),
+  repo.getCategoryBySlug(categorySlug || ''),
+]);
 
 if (!taluka || !taluka.district || !category) {
   return new Response('Category directory not found', { status: 404 });
 }
 
-// Fetch deterministically rotated active eligible providers for today
-const providers = await repo.getRotatedProviders(taluka.id, category.id, new Date());
-const allCategories = await repo.getCategories();
-
-// Fetch custom SEO & intro settings if present
-const dirSettings = await repo.getDirectoryPageSettings(taluka.id, category.id);
+// These independent directory queries can run together after the route entities resolve.
+const [providers, allCategories, dirSettings] = await Promise.all([
+  repo.getRotatedProviders(taluka.id, category.id, new Date()),
+  repo.getCategories(),
+  repo.getDirectoryPageSettings(taluka.id, category.id),
+]);
 
 // SEO indexability rule: If < 3 providers, apply noindex, follow to avoid doorway penalties
 const isIndexable = shouldIndexDirectoryPage(

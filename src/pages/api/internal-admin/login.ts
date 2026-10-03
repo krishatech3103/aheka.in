@@ -8,7 +8,7 @@ import {
 } from '../../../lib/security/adminSession';
 import { getRuntimeConfig } from '../../../lib/runtime/config';
 
-export const POST: APIRoute = async ({ request, cookies, locals }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const ip = getClientIp(request);
 
   // 1. Rate limiting check (max 5 failed attempts per 15 minutes)
@@ -55,19 +55,27 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     resetFailedLogins(ip);
 
     const session = await createAdminSession();
-    cookies.set(ADMIN_SESSION_COOKIE, session.token, {
-      path: '/',
-      httpOnly: true,
-      secure: isSecureCookieRuntime(),
-      sameSite: 'strict',
-      maxAge: session.maxAge,
-    });
+    // This endpoint is reached through a middleware rewrite. Set the header on
+    // the returned response itself so the browser reliably receives the session
+    // cookie after that rewrite.
+    const sessionCookie = [
+      `${ADMIN_SESSION_COOKIE}=${session.token}`,
+      'Path=/',
+      `Max-Age=${session.maxAge}`,
+      'HttpOnly',
+      ...(isSecureCookieRuntime() ? ['Secure'] : []),
+      'SameSite=Strict',
+    ].join('; ');
 
     const adminEntryPath = locals?.adminEntryPath || getRuntimeConfig('ADMIN_ENTRY_PATH') || 'local-admin';
 
     return new Response(JSON.stringify({ success: true, redirect: `/${adminEntryPath}` }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'Set-Cookie': sessionCookie,
+      },
     });
   } catch (err: any) {
     return new Response(JSON.stringify({ success: false, error: err.message }), {

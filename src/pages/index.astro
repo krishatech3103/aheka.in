@@ -1,6 +1,14 @@
 ---
-import { DEFAULT_LOCALE } from '../lib/i18n';
+import { getPreferredLocale, LOCALE_PREFERENCE_COOKIE } from '../lib/i18n';
 
-// Keep the root URL and all invalid locale redirects aligned with one default.
-return Astro.redirect(`/${DEFAULT_LOCALE}`, 302);
+// A device starts in English. Once a visitor chooses a language, the header stores
+// that preference in a first-party cookie and root visits return to it.
+return new Response(null, {
+  status: 302,
+  headers: {
+    Location: '/' + getPreferredLocale(Astro.cookies.get(LOCALE_PREFERENCE_COOKIE)?.value),
+    'Cache-Control': 'private, no-store',
+    Vary: 'Cookie',
+  },
+});
 ---

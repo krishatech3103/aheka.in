@@ -6,10 +6,12 @@ import { getSiteUrl } from '../lib/runtime/config';
 
 export const GET: APIRoute = async ({ url }) => {
   const repo = getDataRepository();
-  const districts: District[] = await repo.getDistricts();
-  const talukas: Taluka[] = await repo.getTalukas();
-  const allVendors = await repo.getAdminVendors();
-  const indexableDirectoryRoutes = await repo.getIndexableDirectoryRoutes();
+  const [districts, talukas, allVendors, indexableDirectoryRoutes] = await Promise.all([
+    repo.getDistricts(),
+    repo.getTalukas(),
+    repo.getAdminVendors(),
+    repo.getIndexableDirectoryRoutes(),
+  ]);
 
   const siteUrl = getSiteUrl(url.origin);
   const urls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [];

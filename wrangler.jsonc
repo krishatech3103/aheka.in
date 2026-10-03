@@ -4,7 +4,8 @@
   "main": "./dist/_worker.js/index.js",
   "compatibility_date": "2024-11-01",
   "compatibility_flags": [
-    "nodejs_compat"
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
   ],
   "assets": {
     "binding": "ASSETS",
@@ -12,10 +13,10 @@
   },
   "vars": {
     "APP_ENVIRONMENT": "production",
-    "SITE_URL": "https://aheka.in",
-    "PUBLIC_SUPABASE_URL": "https://your-project.supabase.co",
-    "PUBLIC_SUPABASE_ANON_KEY": "your-anon-key",
-    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAA...",
+    "SITE_URL": "https://aheka.krishatech.in",
+    "PUBLIC_SUPABASE_URL": "https://xezpaacvjbaidsuvpqku.supabase.co",
+    "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_dEp7DBY5d5iKpK2dKDiq7Q_0EYb1Td-",
+    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAFEWanvgFePUw-da",
     "SEO_MIN_ACTIVE_PROVIDERS": "3"
   }
 }

@@ -14,9 +14,11 @@ const dict = getDictionary(safeLocale);
 const isMr = safeLocale === 'mr';
 
 const repo = getDataRepository();
-const districts = await repo.getDistricts();
-const talukas = await repo.getTalukas();
-const categories = await repo.getCategories();
+const [districts, talukas, categories] = await Promise.all([
+  repo.getDistricts(),
+  repo.getTalukas(),
+  repo.getCategories(),
+]);
 
 // Format categories for SearchIsland
 const searchCategories = categories.map(c => ({
@@ -74,6 +76,7 @@ const pageDesc = isMr
   title={pageTitle}
   description={pageDesc}
   locale={safeLocale}
+  navigationData={{ districts, talukas, categories }}
   canonicalPath={`/${safeLocale}`}
 >
   <!-- Hero Section -->
